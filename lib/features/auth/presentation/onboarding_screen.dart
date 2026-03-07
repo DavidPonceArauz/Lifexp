@@ -25,17 +25,16 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen>
     with TickerProviderStateMixin {
-
-  final _pageCtrl  = PageController();
-  final _nameCtrl  = TextEditingController();
-  int  _page       = 0;
-  bool _saving     = false;
+  final _pageCtrl = PageController();
+  final _nameCtrl = TextEditingController();
+  int _page = 0;
+  bool _saving = false;
   String? _nameError;
 
   // ── Animaciones globales ──────────────────────────────────
-  late AnimationController _floatCtrl;   // árbol flotante
-  late AnimationController _entryCtrl;   // fade entrada por página
-  late AnimationController _particleCtrl;// partículas de fondo
+  late AnimationController _floatCtrl; // árbol flotante
+  late AnimationController _entryCtrl; // fade entrada por página
+  late AnimationController _particleCtrl; // partículas de fondo
 
   late Animation<double> _floatAnim;
   late Animation<double> _entryFade;
@@ -47,20 +46,23 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     _nameCtrl.text = widget.initialUsername;
 
     _floatCtrl = AnimationController(
-      vsync: this, duration: const Duration(milliseconds: 3200),
+      vsync: this,
+      duration: const Duration(milliseconds: 3200),
     )..repeat(reverse: true);
-    _floatAnim = Tween(begin: -6.0, end: 6.0).animate(
-        CurvedAnimation(parent: _floatCtrl, curve: Curves.easeInOut));
+    _floatAnim = Tween(begin: -6.0, end: 6.0)
+        .animate(CurvedAnimation(parent: _floatCtrl, curve: Curves.easeInOut));
 
     _entryCtrl = AnimationController(
-      vsync: this, duration: const Duration(milliseconds: 600),
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
     )..forward();
-    _entryFade  = CurvedAnimation(parent: _entryCtrl, curve: Curves.easeOut);
-    _entrySlide = Tween(begin: const Offset(0, 0.06), end: Offset.zero).animate(
-        CurvedAnimation(parent: _entryCtrl, curve: Curves.easeOut));
+    _entryFade = CurvedAnimation(parent: _entryCtrl, curve: Curves.easeOut);
+    _entrySlide = Tween(begin: const Offset(0, 0.06), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _entryCtrl, curve: Curves.easeOut));
 
     _particleCtrl = AnimationController(
-      vsync: this, duration: const Duration(seconds: 8),
+      vsync: this,
+      duration: const Duration(seconds: 8),
     )..repeat();
   }
 
@@ -79,8 +81,14 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   void _next() {
     if (_page == 3) {
       final name = _nameCtrl.text.trim();
-      if (name.isEmpty) { setState(() => _nameError = 'Tu árbol necesita un nombre'); return; }
-      if (name.length < 3) { setState(() => _nameError = 'Mínimo 3 caracteres'); return; }
+      if (name.isEmpty) {
+        setState(() => _nameError = 'Tu árbol necesita un nombre');
+        return;
+      }
+      if (name.length < 3) {
+        setState(() => _nameError = 'Mínimo 3 caracteres');
+        return;
+      }
       setState(() => _nameError = null);
     }
     _entryCtrl.forward(from: 0);
@@ -98,12 +106,14 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       if (name != widget.initialUsername) {
         await SupabaseConfig.client
             .from('profiles')
-            .update({'username': name})
-            .eq('id', widget.userId);
+            .update({'username': name}).eq('id', widget.userId);
       }
-    } catch (e) { debugPrint('onboarding save: $e'); }
+    } catch (e) {
+      debugPrint('onboarding save: $e');
+    }
     if (mounted) {
-      Navigator.pushReplacementNamed(context, '/home', arguments: widget.userId);
+      Navigator.pushReplacementNamed(context, '/home',
+          arguments: widget.userId);
     }
   }
 
@@ -114,7 +124,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     return Scaffold(
       backgroundColor: AutumnColors.bgPrimary,
       body: Stack(children: [
-
         // Partículas de fondo — hojas y polvo de luz
         AnimatedBuilder(
           animation: _particleCtrl,
@@ -124,8 +133,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           ),
         ),
 
-        SafeArea(child: Column(children: [
-
+        SafeArea(
+            child: Column(children: [
           // Indicador de progreso
           _buildProgressBar(),
 
@@ -155,17 +164,18 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       padding: const EdgeInsets.fromLTRB(32, 20, 32, 0),
       child: Row(
         children: List.generate(5, (i) {
-          final done   = i < _page;
+          final done = i < _page;
           final active = i == _page;
-          return Expanded(child: Container(
+          return Expanded(
+              child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 3),
             height: 3,
             decoration: BoxDecoration(
               color: done
                   ? AutumnColors.mossGreen
                   : active
-                  ? AutumnColors.accentOrange
-                  : AutumnColors.divider,
+                      ? AutumnColors.accentOrange
+                      : AutumnColors.divider,
               borderRadius: BorderRadius.circular(2),
             ),
           ));
@@ -191,10 +201,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           const SizedBox(height: 24),
           _poem(
             'Dentro de ti hay una semilla.\n\n'
-                'No importa dónde estás ahora.\n'
-                'No importa cuánto tiempo llevas parado.\n\n'
-                'Las semillas no se rinden.\n'
-                'Solo esperan el momento de crecer.',
+            'No importa dónde estás ahora.\n'
+            'No importa cuánto tiempo llevas parado.\n\n'
+            'Las semillas no se rinden.\n'
+            'Solo esperan el momento de crecer.',
           ),
           const SizedBox(height: 48),
           _nextBtn('CONTINUAR', _next),
@@ -220,11 +230,11 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           const SizedBox(height: 24),
           _poem(
             'Hay días en que sientes que el tiempo pasa\n'
-                'y tú te quedas igual.\n\n'
-                'Esa sensación tiene nombre:\n'
-                'es una semilla que todavía no ha encontrado\n'
-                'la tierra correcta.\n\n'
-                'Hoy cambia eso.',
+            'y tú te quedas igual.\n\n'
+            'Esa sensación tiene nombre:\n'
+            'es una semilla que todavía no ha encontrado\n'
+            'la tierra correcta.\n\n'
+            'Hoy cambia eso.',
           ),
           const SizedBox(height: 48),
           _nextBtn('LO RECONOZCO', _next),
@@ -250,11 +260,11 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           const SizedBox(height: 24),
           _poem(
             'Cada hábito que cumples es una gota.\n'
-                'Cada meta que alcanzas es una lluvia.\n'
-                'Cada tarea completada es tierra fértil.\n\n'
-                'No necesitas hacerlo todo.\n'
-                'Solo necesitas regar\n'
-                'un poco cada día.',
+            'Cada meta que alcanzas es una lluvia.\n'
+            'Cada tarea completada es tierra fértil.\n\n'
+            'No necesitas hacerlo todo.\n'
+            'Solo necesitas regar\n'
+            'un poco cada día.',
           ),
           const SizedBox(height: 28),
 
@@ -283,9 +293,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         children: [
           _waterSource('🔥', 'HÁBITOS', '+10 XP'),
           _dividerLine(),
-          _waterSource('🎯', 'METAS',   '+50 XP'),
+          _waterSource('🎯', 'METAS', '+50 XP'),
           _dividerLine(),
-          _waterSource('✅', 'TAREAS',  '+5 XP'),
+          _waterSource('✅', 'TAREAS', '+5 XP'),
         ],
       ),
     );
@@ -295,19 +305,23 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     return Column(mainAxisSize: MainAxisSize.min, children: [
       Text(emoji, style: const TextStyle(fontSize: 26)),
       const SizedBox(height: 6),
-      Text(label, style: GoogleFonts.pressStart2p(
-          fontSize: 6, color: AutumnColors.textSecondary)),
+      Text(label,
+          style: GoogleFonts.pressStart2p(
+              fontSize: 6, color: AutumnColors.textSecondary)),
       const SizedBox(height: 4),
-      Text(xp, style: GoogleFonts.pressStart2p(
-          fontSize: 7, color: AutumnColors.accentOrange,
-          fontWeight: FontWeight.bold)),
+      Text(xp,
+          style: GoogleFonts.pressStart2p(
+              fontSize: 7,
+              color: AutumnColors.accentOrange,
+              fontWeight: FontWeight.bold)),
     ]);
   }
 
   Widget _dividerLine() => Container(
-    width: 1, height: 48,
-    color: AutumnColors.divider,
-  );
+        width: 1,
+        height: 48,
+        color: AutumnColors.divider,
+      );
 
   // ══════════════════════════════════════════════════════════
   // PÁGINA 3 — "Tu nombre"
@@ -329,9 +343,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             child: Text(
               'Todo árbol tiene un nombre.\n¿Cómo se llamará el tuyo?',
               style: GoogleFonts.pressStart2p(
-                  fontSize: 9,
-                  color: AutumnColors.textSecondary,
-                  height: 1.9),
+                  fontSize: 9, color: AutumnColors.textSecondary, height: 1.9),
               textAlign: TextAlign.center,
             ),
           ),
@@ -362,8 +374,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 errorText: _nameError,
                 errorStyle: GoogleFonts.pressStart2p(
                     fontSize: 7, color: AutumnColors.accentRed),
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 18),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
               ),
               onChanged: (_) {
                 if (_nameError != null) setState(() => _nameError = null);
@@ -389,7 +401,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-
           // Árbol con glow verde
           AnimatedBuilder(
             animation: _floatAnim,
@@ -398,14 +409,17 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               child: child,
             ),
             child: Container(
-              width: 130, height: 130,
+              width: 130,
+              height: 130,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                boxShadow: [BoxShadow(
-                  color: AutumnColors.mossGreen.withOpacity(0.25),
-                  blurRadius: 50,
-                  spreadRadius: 12,
-                )],
+                boxShadow: [
+                  BoxShadow(
+                    color: AutumnColors.mossGreen.withOpacity(0.25),
+                    blurRadius: 50,
+                    spreadRadius: 12,
+                  )
+                ],
               ),
               child: const Center(
                 child: Text('🌱', style: TextStyle(fontSize: 80)),
@@ -440,12 +454,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Text(
               'No importa lo pequeño que empieces.\n'
-                  'Los árboles más grandes del mundo\n'
-                  'también fueron una semilla.',
+              'Los árboles más grandes del mundo\n'
+              'también fueron una semilla.',
               style: GoogleFonts.pressStart2p(
-                  fontSize: 8,
-                  color: AutumnColors.textSecondary,
-                  height: 2.0),
+                  fontSize: 8, color: AutumnColors.textSecondary, height: 2.0),
               textAlign: TextAlign.center,
             ),
           ),
@@ -460,7 +472,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           _saving
               ? const CircularProgressIndicator(color: AutumnColors.mossGreen)
               : _nextBtn('🌱 COMENZAR A CRECER', _finish,
-              color: AutumnColors.mossGreen),
+                  color: AutumnColors.mossGreen),
         ],
       ),
     );
@@ -481,11 +493,11 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             style: GoogleFonts.pressStart2p(
                 fontSize: 7, color: AutumnColors.textDisabled)),
         const SizedBox(height: 12),
-        _statRow('🌱', 'FORMA',  'SEMILLA'),
+        _statRow('🌱', 'FORMA', 'SEMILLA'),
         const Divider(color: AutumnColors.divider, height: 14),
-        _statRow('⭐', 'NIVEL',  'LVL 1'),
+        _statRow('⭐', 'NIVEL', 'LVL 1'),
         const Divider(color: AutumnColors.divider, height: 14),
-        _statRow('💧', 'AGUA',   '0 XP'),
+        _statRow('💧', 'AGUA', '0 XP'),
       ]),
     );
   }
@@ -533,9 +545,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       padding: const EdgeInsets.symmetric(horizontal: 32),
       child: Text(text,
           style: GoogleFonts.pressStart2p(
-              fontSize: 8,
-              color: AutumnColors.textSecondary,
-              height: 2.2),
+              fontSize: 8, color: AutumnColors.textSecondary, height: 2.2),
           textAlign: TextAlign.center),
     );
   }
@@ -550,8 +560,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           style: ElevatedButton.styleFrom(
             backgroundColor: color,
             padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             elevation: 0,
           ),
           onPressed: onTap,
@@ -605,37 +615,35 @@ class _NaturePainter extends CustomPainter {
 
   static const _elements = [
     // x,    y,    size, speed, type  (0=hoja, 1=círculo luz)
-    [0.08, 0.12, 14.0, 0.7,  0.0],
-    [0.88, 0.06, 10.0, 0.5,  1.0],
-    [0.04, 0.55, 18.0, 0.4,  0.0],
-    [0.92, 0.48, 12.0, 0.8,  0.0],
-    [0.45, 0.95, 16.0, 0.6,  1.0],
-    [0.22, 0.82, 10.0, 0.9,  0.0],
-    [0.75, 0.75, 14.0, 0.3,  1.0],
-    [0.60, 0.08, 8.0,  0.7,  0.0],
-    [0.15, 0.30, 12.0, 0.5,  1.0],
-    [0.80, 0.30, 9.0,  0.6,  0.0],
+    [0.08, 0.12, 14.0, 0.7, 0.0],
+    [0.88, 0.06, 10.0, 0.5, 1.0],
+    [0.04, 0.55, 18.0, 0.4, 0.0],
+    [0.92, 0.48, 12.0, 0.8, 0.0],
+    [0.45, 0.95, 16.0, 0.6, 1.0],
+    [0.22, 0.82, 10.0, 0.9, 0.0],
+    [0.75, 0.75, 14.0, 0.3, 1.0],
+    [0.60, 0.08, 8.0, 0.7, 0.0],
+    [0.15, 0.30, 12.0, 0.5, 1.0],
+    [0.80, 0.30, 9.0, 0.6, 0.0],
   ];
 
   @override
   void paint(Canvas canvas, Size size) {
     for (final e in _elements) {
-      final x     = e[0] as double;
-      final y     = e[1] as double;
-      final s     = e[2] as double;
+      final x = e[0] as double;
+      final y = e[1] as double;
+      final s = e[2] as double;
       final speed = e[3] as double;
-      final type  = e[4] as double;
+      final type = e[4] as double;
 
-      final phase  = (t * speed + x) % 1.0;
-      final dy     = 10.0 * (0.5 - (phase % 1.0 - 0.5).abs());
-      final cx     = x * size.width;
-      final cy     = y * size.height + dy;
+      final phase = (t * speed + x) % 1.0;
+      final dy = 10.0 * (0.5 - (phase % 1.0 - 0.5).abs());
+      final cx = x * size.width;
+      final cy = y * size.height + dy;
       final opacity = 0.035 + 0.025 * (0.5 - (phase - 0.5).abs());
 
       final paint = Paint()
-        ..color = (type == 0
-            ? AutumnColors.mossGreen
-            : AutumnColors.accentGold)
+        ..color = (type == 0 ? AutumnColors.mossGreen : AutumnColors.accentGold)
             .withOpacity(opacity)
         ..style = PaintingStyle.fill;
 

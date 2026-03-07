@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/supabase/supabase_client.dart';
 import '../../../core/theme/autumn_theme.dart';
 import '../../../core/widgets/autumn_widgets.dart';
@@ -36,7 +37,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   void initState() {
     super.initState();
     _floatCtrl = AnimationController(
-      vsync: this, duration: const Duration(milliseconds: 3000),
+      vsync: this,
+      duration: const Duration(milliseconds: 3000),
     )..repeat(reverse: true);
     _floatAnim = Tween<double>(begin: -3.0, end: 3.0)
         .animate(CurvedAnimation(parent: _floatCtrl, curve: Curves.easeInOut));
@@ -44,10 +46,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   @override
-  void dispose() { _floatCtrl.dispose(); super.dispose(); }
+  void dispose() {
+    _floatCtrl.dispose();
+    super.dispose();
+  }
 
   Future<void> _loadAll() async {
-    await Future.wait([_checkOverdueGoals(), _loadAllStats(), _loadDeadlines()]);
+    await Future.wait(
+        [_checkOverdueGoals(), _loadAllStats(), _loadDeadlines()]);
     Future.delayed(const Duration(milliseconds: 600), () {
       if (mounted) _checkFreezeNotification();
     });
@@ -56,52 +62,131 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   Future<void> _checkOverdueGoals() async {
     try {
       final today = DateTime.now().toIso8601String().substring(0, 10);
-      final overdueGoals = await _db.from('goals').select('id')
-          .eq('user_id', widget.userId).eq('status', 'active').lt('deadline', today);
+      final overdueGoals = await _db
+          .from('goals')
+          .select('id')
+          .eq('user_id', widget.userId)
+          .eq('status', 'active')
+          .lt('deadline', today);
       for (final g in overdueGoals) {
         await _db.from('goals').update({'status': 'failed'}).eq('id', g['id']);
-        await _applyXp(-50, 'Meta vencida', 'goal_failed', g['id'] as int, today);
+        await _applyXp(
+            -50, 'Meta vencida', 'goal_failed', g['id'] as int, today);
       }
-    } catch (e) { debugPrint('checkOverdue error: $e'); }
+    } catch (e) {
+      debugPrint('checkOverdue error: $e');
+    }
   }
 
-  Future<void> _applyXp(int amount, String reason, String source,
-      int sourceId, String eventDate) async {
+  Future<void> _applyXp(int amount, String reason, String source, int sourceId,
+      String eventDate) async {
     try {
-      final existing = await _db.from('xp_log').select('id')
-          .eq('source', source).eq('source_id', sourceId)
-          .eq('event_date', eventDate).maybeSingle();
+      final existing = await _db
+          .from('xp_log')
+          .select('id')
+          .eq('source', source)
+          .eq('source_id', sourceId)
+          .eq('event_date', eventDate)
+          .maybeSingle();
       if (existing != null) return;
-      final profile = await _db.from('profiles').select('total_xp')
-          .eq('id', widget.userId).single();
+      final profile = await _db
+          .from('profiles')
+          .select('total_xp')
+          .eq('id', widget.userId)
+          .single();
       final current = profile['total_xp'] as int? ?? 0;
       final newXp = (current + amount).clamp(0, 999999);
-      await _db.from('profiles').update({'total_xp': newXp}).eq('id', widget.userId);
+      await _db
+          .from('profiles')
+          .update({'total_xp': newXp}).eq('id', widget.userId);
       await _db.from('xp_log').insert({
-        'user_id': widget.userId, 'amount': amount, 'reason': reason,
-        'source': source, 'source_id': sourceId, 'event_date': eventDate,
+        'user_id': widget.userId,
+        'amount': amount,
+        'reason': reason,
+        'source': source,
+        'source_id': sourceId,
+        'event_date': eventDate,
       });
-    } catch (e) { debugPrint('XP error: $e'); }
+    } catch (e) {
+      debugPrint('XP error: $e');
+    }
   }
 
   Future<void> _loadAllStats() async {
     try {
       final results = await Future.wait([_fetchStats(), _fetchXp()]);
       final stats = results[0] as Map<String, dynamic>;
-      final xp    = results[1] as Map<String, dynamic>;
+      final xp = results[1] as Map<String, dynamic>;
       if (!mounted) return;
       final newLevel = xp['level'] as int;
+
+      // ── Fix Bug 2: solo notificar subida de nivel si es genuinamente nuevo ──
+      await _maybeNotifyLevelUp(newLevel);
+
       setState(() {
         _goalsCount = stats['goalsCount'] as int;
         _todosCount = stats['todosCount'] as int;
-        _level      = newLevel;
-        _currentXp  = xp['currentXp'] as int;
-        _xpForNext  = xp['xpForNext'] as int;
-        _totalXp    = xp['totalXp'] as int;
+        _level = newLevel;
+        _currentXp = xp['currentXp'] as int;
+        _xpForNext = xp['xpForNext'] as int;
+        _totalXp = xp['totalXp'] as int;
         _updateLevelDerived(newLevel);
       });
-      _syncWidget(); // ← sincroniza widget con datos frescos
-    } catch (e) { debugPrint('loadAllStats error: $e'); }
+      _syncWidget();
+    } catch (e) {
+      debugPrint('loadAllStats error: $e');
+    }
+  }
+
+  /// Muestra la notificación de nivel solo si el usuario subió a un nivel
+  /// que aún no ha sido notificado. Guarda el último nivel notificado en
+  /// SharedPreferences para no repetirlo en cada apertura de la app.
+  Future<void> _maybeNotifyLevelUp(int newLevel) async {
+    if (newLevel <= 1) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastNotified =
+          prefs.getInt('last_level_notified_${widget.userId}') ?? 1;
+      if (newLevel > lastNotified) {
+        await prefs.setInt('last_level_notified_${widget.userId}', newLevel);
+        if (mounted) {
+          _showLevelUpBanner(newLevel);
+        }
+      }
+    } catch (e) {
+      debugPrint('levelUp notify error: $e');
+    }
+  }
+
+  void _showLevelUpBanner(int level) {
+    final c = context.ac;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 4),
+        backgroundColor: AutumnColors.accentOrange,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        content: Row(children: [
+          const Text('🌳', style: TextStyle(fontSize: 24)),
+          const SizedBox(width: 12),
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                Text('¡SUBISTE AL NIVEL $level!',
+                    style: GoogleFonts.pressStart2p(
+                        fontSize: 10,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text('¡Sigue así, tu árbol crece!',
+                    style: GoogleFonts.pressStart2p(
+                        fontSize: 7, color: Colors.white70)),
+              ])),
+        ]),
+      ),
+    );
   }
 
   void _syncWidget() {
@@ -114,42 +199,55 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       final h3 = sorted.length > 2 ? sorted[2] : null;
 
       WidgetService.updateWidget(
-        level:        _level,
-        totalXp:      _currentXp,
-        xpToNext:     _xpForNext,
-        goalsCount:   _goalsCount,
-        tasksToday:   _todosCount,
-        habit1Name:   h1?.name ?? '',
+        level: _level,
+        totalXp: _currentXp,
+        xpToNext: _xpForNext,
+        goalsCount: _goalsCount,
+        tasksToday: _todosCount,
+        habit1Name: h1?.name ?? '',
         habit1Streak: h1?.streak ?? 0,
-        habit2Name:   h2?.name ?? '',
+        habit2Name: h2?.name ?? '',
         habit2Streak: h2?.streak ?? 0,
-        habit3Name:   h3?.name ?? '',
+        habit3Name: h3?.name ?? '',
         habit3Streak: h3?.streak ?? 0,
       );
-    } catch (e) { debugPrint('syncWidget error: $e'); }
+    } catch (e) {
+      debugPrint('syncWidget error: $e');
+    }
   }
 
   Future<Map<String, dynamic>> _fetchStats() async {
-    final goals = await _db.from('goals').select('id')
-        .eq('user_id', widget.userId).eq('status', 'active') as List;
-    final todos = await _db.from('todos').select('id')
-        .eq('user_id', widget.userId).neq('status', 'done') as List;
+    final goals = await _db
+        .from('goals')
+        .select('id')
+        .eq('user_id', widget.userId)
+        .eq('status', 'active') as List;
+    final todos = await _db
+        .from('todos')
+        .select('id')
+        .eq('user_id', widget.userId)
+        .neq('status', 'done') as List;
     return {'goalsCount': goals.length, 'todosCount': todos.length};
   }
 
   Future<Map<String, dynamic>> _fetchXp() async {
     try {
-      final profile = await _db.from('profiles').select('total_xp')
-          .eq('id', widget.userId).single();
-      final totalXp      = profile['total_xp'] as int? ?? 0;
-      final level        = _calcLevel(totalXp);
+      final profile = await _db
+          .from('profiles')
+          .select('total_xp')
+          .eq('id', widget.userId)
+          .single();
+      final totalXp = profile['total_xp'] as int? ?? 0;
+      final level = _calcLevel(totalXp);
       final xpForCurrent = _xpForLevel(level);
-      final xpForNext    = _xpForLevel(level + 1);
-      final currentXp    = totalXp - xpForCurrent;
-      final xpNeeded     = xpForNext - xpForCurrent;
+      final xpForNext = _xpForLevel(level + 1);
+      final currentXp = totalXp - xpForCurrent;
+      final xpNeeded = xpForNext - xpForCurrent;
       return {
-        'level': level, 'currentXp': currentXp.clamp(0, xpNeeded),
-        'xpForNext': xpNeeded, 'totalXp': totalXp,
+        'level': level,
+        'currentXp': currentXp.clamp(0, xpNeeded),
+        'xpForNext': xpNeeded,
+        'totalXp': totalXp,
       };
     } catch (e) {
       return {'level': 1, 'currentXp': 0, 'xpForNext': 500, 'totalXp': 0};
@@ -158,7 +256,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   int _calcLevel(int totalXp) {
     int level = 1;
-    while (totalXp >= _xpForLevel(level + 1)) { level++; if (level >= 20) break; }
+    while (totalXp >= _xpForLevel(level + 1)) {
+      level++;
+      if (level >= 20) break;
+    }
     return level;
   }
 
@@ -170,16 +271,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   void _updateLevelDerived(int level) {
     if (level >= 7) {
-      _treeAsset  = 'assets/images/tree_large.png';
-      _treeSize   = 140;
+      _treeAsset = 'assets/images/tree_large.png';
+      _treeSize = 140;
       _levelTitle = level >= 11 ? 'ÁRBOL LEGENDARIO' : 'ÁRBOL MADURO';
     } else if (level >= 3) {
-      _treeAsset  = 'assets/images/tree_medium.png';
-      _treeSize   = 118;
+      _treeAsset = 'assets/images/tree_medium.png';
+      _treeSize = 118;
       _levelTitle = 'ÁRBOL EN CRECIMIENTO';
     } else {
-      _treeAsset  = 'assets/images/tree_small.png';
-      _treeSize   = 96;
+      _treeAsset = 'assets/images/tree_small.png';
+      _treeSize = 96;
       _levelTitle = 'ÁRBOL JOVEN';
     }
   }
@@ -187,82 +288,147 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   Future<void> _loadDeadlines() async {
     try {
       final today = DateTime.now().toIso8601String().substring(0, 10);
-      final limit = DateTime.now().add(const Duration(days: 7))
-          .toIso8601String().substring(0, 10);
+      final limit = DateTime.now()
+          .add(const Duration(days: 7))
+          .toIso8601String()
+          .substring(0, 10);
       final results = await Future.wait([
-        _db.from('goals').select('title, deadline').eq('user_id', widget.userId)
-            .eq('status', 'active').gte('deadline', today).lte('deadline', limit).order('deadline'),
-        _db.from('todos').select('title, deadline').eq('user_id', widget.userId)
-            .neq('status', 'done').not('deadline', 'is', null)
-            .gte('deadline', today).lte('deadline', limit).order('deadline'),
+        _db
+            .from('goals')
+            .select('title, deadline')
+            .eq('user_id', widget.userId)
+            .eq('status', 'active')
+            .gte('deadline', today)
+            .lte('deadline', limit)
+            .order('deadline'),
+        _db
+            .from('todos')
+            .select('title, deadline')
+            .eq('user_id', widget.userId)
+            .neq('status', 'done')
+            .not('deadline', 'is', null)
+            .gte('deadline', today)
+            .lte('deadline', limit)
+            .order('deadline'),
       ]);
       final all = [
-        ...(results[0] as List).map((g) => {'title': g['title'], 'deadline': g['deadline']}),
-        ...(results[1] as List).map((t) => {'title': t['title'], 'deadline': t['deadline']}),
+        ...(results[0] as List)
+            .map((g) => {'title': g['title'], 'deadline': g['deadline']}),
+        ...(results[1] as List)
+            .map((t) => {'title': t['title'], 'deadline': t['deadline']}),
       ];
-      all.sort((a, b) => (a['deadline'] as String).compareTo(b['deadline'] as String));
+      all.sort((a, b) =>
+          (a['deadline'] as String).compareTo(b['deadline'] as String));
       if (mounted) setState(() => _deadlines = all.take(5).toList());
-    } catch (e) { debugPrint('loadDeadlines error: $e'); }
-  }
-
-  Future<void> _checkFreezeNotification() async {
-    final habitsNotifier = ref.read(habitsProvider.notifier);
-    final habitsState    = ref.read(habitsProvider);
-    final missing        = await habitsNotifier.getMissingYesterday();
-    if (missing.isNotEmpty && habitsState.freezes > 0 && mounted) {
-      _showFreezePopup(habitsState.freezes, missing);
+    } catch (e) {
+      debugPrint('loadDeadlines error: $e');
     }
   }
 
-  void _showFreezePopup(int freezes, List<({int id, String name})> missingHabits) {
-    final c            = context.ac;
-    final yesterday    = DateTime.now().subtract(const Duration(days: 1));
+  // ── Fix Bug 1: Freeze popup solo una vez por día ──────────────────────────
+  Future<void> _checkFreezeNotification() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final today = DateTime.now().toIso8601String().substring(0, 10);
+      final lastShown =
+          prefs.getString('freeze_popup_shown_${widget.userId}') ?? '';
+
+      // Si ya se mostró hoy, no mostrar de nuevo
+      if (lastShown == today) return;
+
+      final habitsNotifier = ref.read(habitsProvider.notifier);
+      final habitsState = ref.read(habitsProvider);
+      final missing = await habitsNotifier.getMissingYesterday();
+
+      if (missing.isNotEmpty && habitsState.freezes > 0 && mounted) {
+        // Guardar que ya se mostró hoy ANTES de mostrar el popup
+        await prefs.setString('freeze_popup_shown_${widget.userId}', today);
+        _showFreezePopup(habitsState.freezes, missing);
+      }
+    } catch (e) {
+      debugPrint('checkFreezeNotification error: $e');
+    }
+  }
+
+  void _showFreezePopup(
+      int freezes, List<({int id, String name})> missingHabits) {
+    final c = context.ac;
+    final yesterday = DateTime.now().subtract(const Duration(days: 1));
     final yesterdayStr = DateFormat('EEEE dd').format(yesterday).toUpperCase();
-    final freezesLeft  = [freezes];
+    final freezesLeft = [freezes];
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) => AlertDialog(
           backgroundColor: c.bgCard,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Text('❄ USAR FREEZE',
-              style: GoogleFonts.pressStart2p(color: AutumnColors.freeze, fontSize: 10)),
+              style: GoogleFonts.pressStart2p(
+                  color: AutumnColors.freeze, fontSize: 10)),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Text('Ayer ($yesterdayStr) fallaste estos hábitos.',
-                  style: GoogleFonts.pressStart2p(fontSize: 9, color: c.textSecondary),
+                  style: GoogleFonts.pressStart2p(
+                      fontSize: 9, color: c.textSecondary),
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 4),
+              Text(
+                  'Tienes $freezes freeze${freezes != 1 ? "s" : ""} disponible${freezes != 1 ? "s" : ""}.',
+                  style: GoogleFonts.pressStart2p(
+                      fontSize: 9, color: AutumnColors.freeze),
                   textAlign: TextAlign.center),
               const SizedBox(height: 12),
               ...missingHabits.map((h) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(children: [
-                  Expanded(child: Text(h.name.toUpperCase(),
-                      style: GoogleFonts.pressStart2p(fontSize: 9, color: c.textPrimary))),
-                  StatefulBuilder(builder: (_, _s) => ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: AutumnColors.freeze,
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
-                    onPressed: freezesLeft[0] > 0 ? () async {
-                      final ok = await ref.read(habitsProvider.notifier).applyManualFreeze(h.id);
-                      if (ok) { freezesLeft[0]--; setDlg(() {}); }
-                    } : null,
-                    child: Text(freezesLeft[0] > 0 ? '❄ FREEZE' : 'SIN FREEZES',
-                        style: GoogleFonts.pressStart2p(fontSize: 8, color: Colors.white)),
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(children: [
+                      Expanded(
+                          child: Text(h.name.toUpperCase(),
+                              style: GoogleFonts.pressStart2p(
+                                  fontSize: 9, color: c.textPrimary))),
+                      StatefulBuilder(
+                          builder: (_, _s) => ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                    backgroundColor: AutumnColors.freeze,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4)),
+                                onPressed: freezesLeft[0] > 0
+                                    ? () async {
+                                        final ok = await ref
+                                            .read(habitsProvider.notifier)
+                                            .applyManualFreeze(h.id);
+                                        if (ok) {
+                                          freezesLeft[0]--;
+                                          setDlg(() {});
+                                        }
+                                      }
+                                    : null,
+                                child: Text(
+                                    freezesLeft[0] > 0
+                                        ? '❄ FREEZE'
+                                        : 'SIN FREEZES',
+                                    style: GoogleFonts.pressStart2p(
+                                        fontSize: 8, color: Colors.white)),
+                              )),
+                    ]),
                   )),
-                ]),
-              )),
             ]),
           ),
           actions: [
             TextButton(
-                onPressed: () { Navigator.pop(ctx); _goTo(2); },
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _goTo(2);
+                },
                 child: Text('→ IR A HÁBITOS',
-                    style: GoogleFonts.pressStart2p(fontSize: 9, color: AutumnColors.mossGreen))),
+                    style: GoogleFonts.pressStart2p(
+                        fontSize: 9, color: AutumnColors.mossGreen))),
             TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: Text('IGNORAR',
-                    style: GoogleFonts.pressStart2p(fontSize: 9, color: c.textDisabled))),
+                child: Text('DECIDIR DESPUÉS',
+                    style: GoogleFonts.pressStart2p(
+                        fontSize: 9, color: c.textDisabled))),
           ],
         ),
       ),
@@ -281,13 +447,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    final c           = context.ac;
+    final c = context.ac;
     final habitsState = ref.watch(habitsProvider);
-    final freezes     = habitsState.freezes;
-    final maxStreak   = habitsState.streakData.isEmpty ? 0
-        : habitsState.streakData.map((s) => s.streak).reduce((a, b) => a > b ? a : b);
-    final dateStr     = DateFormat('EEEE, d MMMM yyyy', 'es').format(DateTime.now()).toUpperCase();
-    final xpProgress  = _xpForNext > 0 ? (_currentXp / _xpForNext).clamp(0.0, 1.0) : 0.0;
+    final freezes = habitsState.freezes;
+    final maxStreak = habitsState.streakData.isEmpty
+        ? 0
+        : habitsState.streakData
+            .map((s) => s.streak)
+            .reduce((a, b) => a > b ? a : b);
+    final dateStr = DateFormat('EEEE, d MMMM yyyy', 'es')
+        .format(DateTime.now())
+        .toUpperCase();
+    final xpProgress =
+        _xpForNext > 0 ? (_currentXp / _xpForNext).clamp(0.0, 1.0) : 0.0;
 
     return Scaffold(
       backgroundColor: c.bgPrimary,
@@ -306,16 +478,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 title: Row(children: [
                   Image.asset('assets/images/acorn.png', width: 18, height: 18),
                   const SizedBox(width: 8),
-                  Text('LifeXP', style: GoogleFonts.pressStart2p(
-                      fontSize: 14, color: AutumnColors.accentOrange)),
+                  Text('LifeXP',
+                      style: GoogleFonts.pressStart2p(
+                          fontSize: 14, color: AutumnColors.accentOrange)),
                 ])),
             actions: [
               IconButton(
-                  icon: Icon(Icons.settings_rounded, color: c.textDisabled, size: 22),
+                  icon: Icon(Icons.settings_rounded,
+                      color: c.textDisabled, size: 22),
                   tooltip: 'Perfil y ajustes',
-                  onPressed: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => ProfileScreen(userId: widget.userId)),
-                  ).then((_) => _loadAll())),
+                  onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) =>
+                                ProfileScreen(userId: widget.userId)),
+                      ).then((_) => _loadAll())),
             ],
             bottom: PreferredSize(
                 preferredSize: const Size.fromHeight(2),
@@ -324,25 +501,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(dateStr, style: GoogleFonts.pressStart2p(
-                    fontSize: 7, color: c.textDisabled)),
-                const SizedBox(height: 14),
-                _buildTreeHero(context, xpProgress),
-                const SizedBox(height: 16),
-                _buildSectionLabel(context, 'ESTADO DEL JUGADOR'),
-                const SizedBox(height: 10),
-                _buildStatsGrid(context, freezes, maxStreak),
-                const SizedBox(height: 16),
-                _buildSectionLabel(context, 'PRÓXIMOS VENCIMIENTOS'),
-                const SizedBox(height: 10),
-                _buildDeadlineCard(context),
-                const SizedBox(height: 16),
-                _buildSectionLabel(context, 'ACCIONES RÁPIDAS'),
-                const SizedBox(height: 10),
-                _buildQuickActions(context),
-                const SizedBox(height: 80),
-              ]),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(dateStr,
+                        style: GoogleFonts.pressStart2p(
+                            fontSize: 7, color: c.textDisabled)),
+                    const SizedBox(height: 14),
+                    _buildTreeHero(context, xpProgress),
+                    const SizedBox(height: 16),
+                    _buildSectionLabel(context, 'ESTADO DEL JUGADOR'),
+                    const SizedBox(height: 10),
+                    _buildStatsGrid(context, freezes, maxStreak),
+                    const SizedBox(height: 16),
+                    _buildSectionLabel(context, 'PRÓXIMOS VENCIMIENTOS'),
+                    const SizedBox(height: 10),
+                    _buildDeadlineCard(context),
+                    const SizedBox(height: 16),
+                    _buildSectionLabel(context, 'ACCIONES RÁPIDAS'),
+                    const SizedBox(height: 10),
+                    _buildQuickActions(context),
+                    const SizedBox(height: 80),
+                  ]),
             ),
           ),
         ]),
@@ -356,10 +536,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       decoration: BoxDecoration(
           color: c.bgCard,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AutumnColors.mossGreen.withOpacity(0.45), width: 1.5),
-          boxShadow: [BoxShadow(
-              color: AutumnColors.mossGreen.withOpacity(0.08),
-              blurRadius: 12, offset: const Offset(0, 4))]),
+          border: Border.all(
+              color: AutumnColors.mossGreen.withOpacity(0.45), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+                color: AutumnColors.mossGreen.withOpacity(0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 4))
+          ]),
       child: Column(children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -369,50 +553,112 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   topLeft: Radius.circular(15), topRight: Radius.circular(15))),
           child: Row(children: [
             Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                     color: AutumnColors.accentOrange,
                     borderRadius: BorderRadius.circular(8)),
-                child: Text('LVL $_level', style: GoogleFonts.pressStart2p(
-                    fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold))),
+                child: Text('LVL $_level',
+                    style: GoogleFonts.pressStart2p(
+                        fontSize: 10,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold))),
             const SizedBox(width: 10),
-            Expanded(child: Text(_levelTitle, style: GoogleFonts.pressStart2p(
-                fontSize: 8, color: AutumnColors.mossGreen))),
-            Text('$_totalXp XP total', style: GoogleFonts.pressStart2p(
-                fontSize: 7, color: c.textDisabled)),
+            Expanded(
+                child: Text(_levelTitle,
+                    style: GoogleFonts.pressStart2p(
+                        fontSize: 8, color: AutumnColors.mossGreen))),
+            Text('$_totalXp XP total',
+                style: GoogleFonts.pressStart2p(
+                    fontSize: 7, color: c.textDisabled)),
           ]),
         ),
         SizedBox(
           height: 200,
           child: Stack(alignment: Alignment.center, children: [
-            Positioned(bottom: 0, left: 0, right: 0,
-                child: Container(height: 32, decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                        begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                        colors: [AutumnColors.mossGreen.withOpacity(0),
-                          AutumnColors.mossGreen.withOpacity(0.08)])))),
-            Positioned(left: 18, top: 30, child: Transform.rotate(angle: -0.4,
-                child: Opacity(opacity: 0.55, child: Image.asset('assets/images/leaf_orange.png',
-                    width: 22, height: 22, filterQuality: FilterQuality.none)))),
-            Positioned(left: 38, bottom: 50, child: Transform.rotate(angle: 0.6,
-                child: Opacity(opacity: 0.45, child: Image.asset('assets/images/leaf_brown.png',
-                    width: 18, height: 18, filterQuality: FilterQuality.none)))),
-            Positioned(right: 22, top: 24, child: Transform.rotate(angle: 0.5,
-                child: Opacity(opacity: 0.6, child: Image.asset('assets/images/leaf_yellow.png',
-                    width: 24, height: 24, filterQuality: FilterQuality.none)))),
-            Positioned(right: 44, bottom: 44, child: Transform.rotate(angle: -0.3,
-                child: Opacity(opacity: 0.4, child: Image.asset('assets/images/leaf_orange.png',
-                    width: 16, height: 16, filterQuality: FilterQuality.none)))),
-            Positioned(right: 16, top: 12, child: Opacity(opacity: 0.7,
-                child: Image.asset('assets/images/acorn.png',
-                    width: 18, height: 18, filterQuality: FilterQuality.none))),
-            Positioned(left: 16, bottom: 16, child: Opacity(opacity: 0.5,
-                child: Image.asset('assets/images/acorn.png',
-                    width: 14, height: 14, filterQuality: FilterQuality.none))),
+            Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                    height: 32,
+                    decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                          AutumnColors.mossGreen.withOpacity(0),
+                          AutumnColors.mossGreen.withOpacity(0.08)
+                        ])))),
+            Positioned(
+                left: 18,
+                top: 30,
+                child: Transform.rotate(
+                    angle: -0.4,
+                    child: Opacity(
+                        opacity: 0.55,
+                        child: Image.asset('assets/images/leaf_orange.png',
+                            width: 22,
+                            height: 22,
+                            filterQuality: FilterQuality.none)))),
+            Positioned(
+                left: 38,
+                bottom: 50,
+                child: Transform.rotate(
+                    angle: 0.6,
+                    child: Opacity(
+                        opacity: 0.45,
+                        child: Image.asset('assets/images/leaf_brown.png',
+                            width: 18,
+                            height: 18,
+                            filterQuality: FilterQuality.none)))),
+            Positioned(
+                right: 22,
+                top: 24,
+                child: Transform.rotate(
+                    angle: 0.5,
+                    child: Opacity(
+                        opacity: 0.6,
+                        child: Image.asset('assets/images/leaf_yellow.png',
+                            width: 24,
+                            height: 24,
+                            filterQuality: FilterQuality.none)))),
+            Positioned(
+                right: 44,
+                bottom: 44,
+                child: Transform.rotate(
+                    angle: -0.3,
+                    child: Opacity(
+                        opacity: 0.4,
+                        child: Image.asset('assets/images/leaf_orange.png',
+                            width: 16,
+                            height: 16,
+                            filterQuality: FilterQuality.none)))),
+            Positioned(
+                right: 16,
+                top: 12,
+                child: Opacity(
+                    opacity: 0.7,
+                    child: Image.asset('assets/images/acorn.png',
+                        width: 18,
+                        height: 18,
+                        filterQuality: FilterQuality.none))),
+            Positioned(
+                left: 16,
+                bottom: 16,
+                child: Opacity(
+                    opacity: 0.5,
+                    child: Image.asset('assets/images/acorn.png',
+                        width: 14,
+                        height: 14,
+                        filterQuality: FilterQuality.none))),
             AnimatedBuilder(
                 animation: _floatAnim,
-                child: Image.asset(_treeAsset, width: _treeSize, height: _treeSize,
-                    fit: BoxFit.contain, filterQuality: FilterQuality.none),
+                child: Image.asset(_treeAsset,
+                    width: _treeSize,
+                    height: _treeSize,
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.none),
                 builder: (_, child) => Transform.translate(
                     offset: Offset(0, _floatAnim.value), child: child)),
           ]),
@@ -421,10 +667,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
           child: Column(children: [
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text(_nextMilestoneHint(), style: GoogleFonts.pressStart2p(
-                  fontSize: 7, color: c.textDisabled)),
-              Text('$_currentXp / $_xpForNext XP', style: GoogleFonts.pressStart2p(
-                  fontSize: 7, color: AutumnColors.accentOrange)),
+              Text(_nextMilestoneHint(),
+                  style: GoogleFonts.pressStart2p(
+                      fontSize: 7, color: c.textDisabled)),
+              Text('$_currentXp / $_xpForNext XP',
+                  style: GoogleFonts.pressStart2p(
+                      fontSize: 7, color: AutumnColors.accentOrange)),
             ]),
             const SizedBox(height: 6),
             ClipRRect(
@@ -435,14 +683,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       duration: const Duration(milliseconds: 800),
                       curve: Curves.easeOut,
                       widthFactor: xpProgress,
-                      child: Container(height: 14, decoration: const BoxDecoration(
-                          gradient: LinearGradient(
-                              colors: [AutumnColors.accentOrange, AutumnColors.accentGold])))),
-                  SizedBox(height: 14, child: Center(child: Text(
-                      '${(xpProgress * 100).round()}%',
-                      style: GoogleFonts.pressStart2p(
-                          fontSize: 7,
-                          color: xpProgress > 0.3 ? Colors.white : c.textDisabled)))),
+                      child: Container(
+                          height: 14,
+                          decoration: const BoxDecoration(
+                              gradient: LinearGradient(colors: [
+                            AutumnColors.accentOrange,
+                            AutumnColors.accentGold
+                          ])))),
+                  SizedBox(
+                      height: 14,
+                      child: Center(
+                          child: Text('${(xpProgress * 100).round()}%',
+                              style: GoogleFonts.pressStart2p(
+                                  fontSize: 7,
+                                  color: xpProgress > 0.3
+                                      ? Colors.white
+                                      : c.textDisabled)))),
                 ])),
           ]),
         ),
@@ -452,18 +708,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   Widget _buildStatsGrid(BuildContext context, int freezes, int maxStreak) {
     final stats = [
-      (freezes,     '❄',  'FREEZES', AutumnColors.freeze),
-      (_goalsCount, '🎯', 'METAS',   AutumnColors.accentOrange),
-      (maxStreak,   '🔥', 'RACHA',   AutumnColors.accentGold),
-      (_todosCount, '📋', 'TAREAS',  AutumnColors.mossGreen),
+      (freezes, '❄', 'FREEZES', AutumnColors.freeze),
+      (_goalsCount, '🎯', 'METAS', AutumnColors.accentOrange),
+      (maxStreak, '🔥', 'RACHA', AutumnColors.accentGold),
+      (_todosCount, '📋', 'TAREAS', AutumnColors.mossGreen),
     ];
     return GridView.count(
         crossAxisCount: 4,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        crossAxisSpacing: 8, mainAxisSpacing: 8, childAspectRatio: 0.82,
-        children: stats.map((s) =>
-            _statCard(context, s.$1.toString(), s.$2, s.$3, s.$4)).toList());
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        childAspectRatio: 0.82,
+        children: stats
+            .map((s) => _statCard(context, s.$1.toString(), s.$2, s.$3, s.$4))
+            .toList());
   }
 
   Widget _statCard(BuildContext context, String value, String emoji,
@@ -475,17 +734,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           color: c.bgCard,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: color.withOpacity(0.3), width: 1.5),
-          boxShadow: [BoxShadow(
-              color: color.withOpacity(0.06), blurRadius: 6,
-              offset: const Offset(0, 2))]),
+          boxShadow: [
+            BoxShadow(
+                color: color.withOpacity(0.06),
+                blurRadius: 6,
+                offset: const Offset(0, 2))
+          ]),
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         Text(emoji, style: const TextStyle(fontSize: 20)),
         const SizedBox(height: 5),
-        Text(value, style: GoogleFonts.pressStart2p(
-            fontSize: 15, color: color, fontWeight: FontWeight.bold)),
+        Text(value,
+            style: GoogleFonts.pressStart2p(
+                fontSize: 15, color: color, fontWeight: FontWeight.bold)),
         const SizedBox(height: 4),
-        Text(label, style: GoogleFonts.pressStart2p(
-            fontSize: 6, color: c.textDisabled), textAlign: TextAlign.center),
+        Text(label,
+            style: GoogleFonts.pressStart2p(fontSize: 6, color: c.textDisabled),
+            textAlign: TextAlign.center),
       ]),
     );
   }
@@ -500,56 +764,82 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             border: Border.all(color: c.divider)),
         child: _deadlines.isEmpty
             ? Row(children: [
-          const Text('🌿', style: TextStyle(fontSize: 16)),
-          const SizedBox(width: 10),
-          Expanded(child: Text('Sin vencimientos próximos',
-              style: GoogleFonts.pressStart2p(
-                  fontSize: 8, color: AutumnColors.mossGreen))),
-        ])
-            : Column(children: _deadlines.take(5)
-            .map((d) => _deadlineRow(context, d)).toList()));
+                const Text('🌿', style: TextStyle(fontSize: 16)),
+                const SizedBox(width: 10),
+                Expanded(
+                    child: Text('Sin vencimientos próximos',
+                        style: GoogleFonts.pressStart2p(
+                            fontSize: 8, color: AutumnColors.mossGreen))),
+              ])
+            : Column(
+                children: _deadlines
+                    .take(5)
+                    .map((d) => _deadlineRow(context, d))
+                    .toList()));
   }
 
   Widget _deadlineRow(BuildContext context, Map<String, dynamic> item) {
     final c = context.ac;
     DateTime? dl;
-    try { dl = DateTime.parse(item['deadline'] as String); } catch (_) {}
+    try {
+      dl = DateTime.parse(item['deadline'] as String);
+    } catch (_) {}
     final diff = dl != null ? dl.difference(DateTime.now()).inDays : null;
-    String label; Color color;
-    if (diff == null)   { label = '?';          color = c.textDisabled; }
-    else if (diff < 0)  { label = 'VENCIDA';    color = AutumnColors.accentRed; }
-    else if (diff == 0) { label = 'HOY';         color = AutumnColors.accentRed; }
-    else if (diff == 1) { label = 'MAÑANA';      color = AutumnColors.accentOrange; }
-    else if (diff <= 3) { label = 'En ${diff}d'; color = AutumnColors.accentOrange; }
-    else                { label = 'En ${diff}d'; color = AutumnColors.accentGold; }
+    String label;
+    Color color;
+    if (diff == null) {
+      label = '?';
+      color = c.textDisabled;
+    } else if (diff < 0) {
+      label = 'VENCIDA';
+      color = AutumnColors.accentRed;
+    } else if (diff == 0) {
+      label = 'HOY';
+      color = AutumnColors.accentRed;
+    } else if (diff == 1) {
+      label = 'MAÑANA';
+      color = AutumnColors.accentOrange;
+    } else if (diff <= 3) {
+      label = 'En ${diff}d';
+      color = AutumnColors.accentOrange;
+    } else {
+      label = 'En ${diff}d';
+      color = AutumnColors.accentGold;
+    }
 
     final title = item['title'] as String? ?? '';
     return Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(children: [
-          Expanded(child: Text(
-              title.length > 30 ? '${title.substring(0, 30)}…' : title,
-              style: GoogleFonts.pressStart2p(fontSize: 8, color: c.textPrimary))),
+          Expanded(
+              child: Text(
+                  title.length > 30 ? '${title.substring(0, 30)}…' : title,
+                  style: GoogleFonts.pressStart2p(
+                      fontSize: 8, color: c.textPrimary))),
           Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                   color: color.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: color.withOpacity(0.4))),
-              child: Text(label, style: GoogleFonts.pressStart2p(fontSize: 7, color: color))),
+              child: Text(label,
+                  style: GoogleFonts.pressStart2p(fontSize: 7, color: color))),
         ]));
   }
 
   Widget _buildQuickActions(BuildContext context) {
     return Row(children: [
-      Expanded(child: _actionBtn(context, '🎯', 'METAS',
-          AutumnColors.accentOrange, () => _goTo(1))),
+      Expanded(
+          child: _actionBtn(context, '🎯', 'METAS', AutumnColors.accentOrange,
+              () => _goTo(1))),
       const SizedBox(width: 8),
-      Expanded(child: _actionBtn(context, '🔥', 'HÁBITOS',
-          AutumnColors.mossGreen, () => _goTo(2))),
+      Expanded(
+          child: _actionBtn(context, '🔥', 'HÁBITOS', AutumnColors.mossGreen,
+              () => _goTo(2))),
       const SizedBox(width: 8),
-      Expanded(child: _actionBtn(context, '📋', 'TAREAS',
-          AutumnColors.accentGold, () => _goTo(3))),
+      Expanded(
+          child: _actionBtn(context, '📋', 'TAREAS', AutumnColors.accentGold,
+              () => _goTo(3))),
     ]);
   }
 
@@ -566,19 +856,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Text(emoji, style: const TextStyle(fontSize: 22)),
               const SizedBox(height: 5),
-              Text(label, style: GoogleFonts.pressStart2p(
-                  fontSize: 7, color: color, fontWeight: FontWeight.bold)),
+              Text(label,
+                  style: GoogleFonts.pressStart2p(
+                      fontSize: 7, color: color, fontWeight: FontWeight.bold)),
             ])));
   }
 
   Widget _buildSectionLabel(BuildContext context, String text) {
     final c = context.ac;
     return Row(children: [
-      Container(width: 3, height: 14, decoration: BoxDecoration(
-          color: AutumnColors.accentOrange, borderRadius: BorderRadius.circular(2))),
+      Container(
+          width: 3,
+          height: 14,
+          decoration: BoxDecoration(
+              color: AutumnColors.accentOrange,
+              borderRadius: BorderRadius.circular(2))),
       const SizedBox(width: 8),
-      Text(text, style: GoogleFonts.pressStart2p(
-          fontSize: 8, color: c.textDisabled, fontWeight: FontWeight.bold)),
+      Text(text,
+          style: GoogleFonts.pressStart2p(
+              fontSize: 8, color: c.textDisabled, fontWeight: FontWeight.bold)),
     ]);
   }
 }
