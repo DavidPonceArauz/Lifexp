@@ -8,7 +8,7 @@ import '../theme/autumn_theme.dart';
 
 class NotificationConfig {
   final bool enabled;
-  final int daysBefore;
+  final int daysBefore;   // 0 = mismo día
   final int hour;
   final int minute;
   final int repeatTimes;
@@ -16,7 +16,7 @@ class NotificationConfig {
 
   const NotificationConfig({
     this.enabled = false,
-    this.daysBefore = 1,
+    this.daysBefore = 0,  // ← default: mismo día
     this.hour = 9,
     this.minute = 0,
     this.repeatTimes = 1,
@@ -51,7 +51,9 @@ class NotificationConfig {
   String get summary {
     final timeStr =
         '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
-    final daysStr = daysBefore == 1 ? '1 día antes' : '$daysBefore días antes';
+    final daysStr = daysBefore == 0
+        ? 'El mismo día'
+        : daysBefore == 1 ? '1 día antes' : '$daysBefore días antes';
     final repeatStr = repeatTimes == 1
         ? '1 vez'
         : '$repeatTimes veces cada ${repeatIntervalHours}h';
@@ -217,13 +219,12 @@ class _NotificationConfigWidgetState extends State<NotificationConfigWidget> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Divider(color: AutumnColors.divider, height: 14),
-                  _cfgLabel('DÍAS ANTES DEL VENCIMIENTO'),
+                  _cfgLabel('CUÁNDO NOTIFICAR'),
                   const SizedBox(height: 6),
                   _daySelector(),
                   const SizedBox(height: 12),
                   _cfgLabel('HORA DE LA NOTIFICACIÓN'),
                   const SizedBox(height: 6),
-                  // ✅ Reloj estandarizado
                   buildTimePicker(
                     context: context,
                     hour: _cfg.hour,
@@ -245,13 +246,21 @@ class _NotificationConfigWidgetState extends State<NotificationConfigWidget> {
   }
 
   Widget _daySelector() {
-    const options = [1, 2, 3, 5, 7];
+    // 0 = mismo día, 1 = 1 día antes, etc.
+    const options = [
+      {'value': 0, 'label': 'DIA',  'sub': 'mismo día'},
+      {'value': 1, 'label': '1D',   'sub': '1 día antes'},
+      {'value': 2, 'label': '2D',   'sub': '2 días antes'},
+      {'value': 3, 'label': '3D',   'sub': '3 días antes'},
+      {'value': 7, 'label': '7D',   'sub': '1 semana antes'},
+    ];
     return Row(
-        children: options.map((d) {
-          final sel = _cfg.daysBefore == d;
+        children: options.map((opt) {
+          final val = opt['value'] as int;
+          final sel = _cfg.daysBefore == val;
           return Expanded(
               child: GestureDetector(
-                onTap: () => _update(_cfg.copyWith(daysBefore: d)),
+                onTap: () => _update(_cfg.copyWith(daysBefore: val)),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 130),
                   margin: const EdgeInsets.only(right: 5),
@@ -260,18 +269,20 @@ class _NotificationConfigWidgetState extends State<NotificationConfigWidget> {
                       color: sel ? AutumnColors.accentOrange : AutumnColors.bgCard,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                          color:
-                          sel ? AutumnColors.accentOrange : AutumnColors.divider)),
+                          color: sel
+                              ? AutumnColors.accentOrange
+                              : AutumnColors.divider)),
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Text('$d',
+                    Text(opt['label'] as String,
                         style: GoogleFonts.pressStart2p(
-                            fontSize: 10,
+                            fontSize: 9,
                             color: sel ? Colors.white : AutumnColors.textPrimary,
                             fontWeight: FontWeight.bold)),
-                    Text(d == 1 ? 'día' : 'días',
+                    Text(opt['sub'] as String,
                         style: GoogleFonts.pressStart2p(
-                            fontSize: 6,
-                            color: sel ? Colors.white70 : AutumnColors.textDisabled)),
+                            fontSize: 5,
+                            color: sel ? Colors.white70 : AutumnColors.textDisabled),
+                        textAlign: TextAlign.center),
                   ]),
                 ),
               ));
@@ -479,7 +490,6 @@ class _HabitReminderWidgetState extends State<HabitReminderWidget> {
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
             child: Column(children: [
               const Divider(color: AutumnColors.divider, height: 14),
-              // ✅ Mismo reloj estandarizado que Goals/Todos
               buildTimePicker(
                 context: context,
                 hour: _hour,

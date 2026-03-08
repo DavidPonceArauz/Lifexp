@@ -17,12 +17,9 @@ class NotificationService {
 
   bool _initialized = false;
 
-  // Stream que emite la ruta destino cuando el usuario toca una notificación.
-  // Valores posibles: 'habits', 'goals', 'todo'
   final _tapController = StreamController<String>.broadcast();
   Stream<String> get onNotificationTap => _tapController.stream;
 
-  // Payload pendiente de cold start — se consume desde main.dart
   String? _pendingColdStartPayload;
   String? consumeColdStartPayload() {
     final p = _pendingColdStartPayload;
@@ -50,9 +47,7 @@ class NotificationService {
         android: androidSettings,
         iOS: iosSettings,
       ),
-      // Tap cuando la app está abierta o en background
       onDidReceiveNotificationResponse: _onTap,
-      // Tap desde cold start — debe ser función top-level
       onDidReceiveBackgroundNotificationResponse: notificationBackgroundHandler,
     );
 
@@ -66,9 +61,7 @@ class NotificationService {
         IOSFlutterLocalNotificationsPlugin>()
         ?.requestPermissions(alert: true, badge: true, sound: true);
 
-    // Revisar si la app fue abierta tocando una notificación (cold start)
     await _checkLaunchNotification();
-
     _initialized = true;
   }
 
@@ -84,7 +77,6 @@ class NotificationService {
     if (details?.didNotificationLaunchApp == true) {
       final payload = details?.notificationResponse?.payload;
       if (payload != null && payload.isNotEmpty) {
-        // Guardar para que main.dart lo consuma una vez el navigator esté listo
         _pendingColdStartPayload = payload;
       }
     }
@@ -144,11 +136,16 @@ class NotificationService {
     android: AndroidNotificationDetails(
       'lifexp_reminders', 'LifeXP Recordatorios',
       channelDescription: 'Recordatorios de metas, objetivos y tareas',
-      importance: Importance.high, priority: Priority.high,
-      icon: '@mipmap/ic_launcher', playSound: true, enableVibration: true,
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+      playSound: true,
+      enableVibration: true,
     ),
     iOS: DarwinNotificationDetails(
-      presentAlert: true, presentBadge: true, presentSound: true,
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
     ),
   );
 
@@ -156,18 +153,25 @@ class NotificationService {
     android: AndroidNotificationDetails(
       'lifexp_habits_v2', 'LifeXP Hábitos',
       channelDescription: 'Recordatorios diarios de hábitos',
-      importance: Importance.high, priority: Priority.high,
-      icon: '@mipmap/ic_launcher', playSound: true, enableVibration: true,
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+      playSound: true,
+      enableVibration: true,
     ),
     iOS: DarwinNotificationDetails(
-      presentAlert: true, presentBadge: true, presentSound: true,
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
     ),
   );
 
   // ── Schedule deadline notifications ───────────────────────────────────────
+  /// daysBefore = 0 → notifica el mismo día del deadline a la hora indicada
+  /// daysBefore = 1 → notifica 1 día antes, etc.
   Future<void> scheduleDeadlineNotifications({
     required int itemId,
-    required String itemType, // 'goal' | 'objective' | 'todo'
+    required String itemType,
     required String title,
     required DateTime deadline,
     required Map<String, int> config,
@@ -175,29 +179,49 @@ class NotificationService {
     if (!_initialized) await init();
     await cancelItemNotifications(itemId: itemId, itemType: itemType);
 
-    final daysBefore        = config['daysBefore'] ?? 1;
+    final daysBefore        = config['daysBefore'] ?? 0;
     final hour              = config['hour'] ?? 9;
     final minute            = config['minute'] ?? 0;
     final repeatTimes       = config['repeatTimes'] ?? 1;
     final repeatIntervalHrs = config['repeatIntervalHours'] ?? 3;
     final payload           = _payloadForType(itemType);
 
-    final firstNotif = tz.TZDateTime(
-      tz.local,
-      deadline.year, deadline.month, deadline.day - daysBefore, hour, minute,
+    // ── Calcular fecha base de la primera notificación ─────────────────────
+    // daysBefore=0 → mismo día del deadline
+    // daysBefore=1 → un día antes, etc.
+    final notifDate = DateTime(
+      deadline.year,
+      deadline.month,
+      deadline.day - daysBefore,
+      hour,
+      minute,
     );
+
+    final firstNotif = tz.TZDateTime.from(notifDate, tz.local);
+
+    // Si la hora ya pasó hoy (mismo día) simplemente no programamos
     if (firstNotif.isBefore(tz.TZDateTime.now(tz.local))) return;
 
     final bodies = {
-      'goal':      '🎯 Tu meta vence en $daysBefore día${daysBefore != 1 ? "s" : ""}',
-      'objective': '📋 Un objetivo vence pronto',
-      'todo':      '✅ Una tarea vence en $daysBefore día${daysBefore != 1 ? "s" : ""}',
+      'goal':      daysBefore == 0
+          ? '🎯 Tu meta vence HOY'
+          : '🎯 Tu meta vence en $daysBefore día${daysBefore != 1 ? "s" : ""}',
+      'objective': daysBefore == 0
+          ? '📋 Un objetivo vence HOY'
+          : '📋 Un objetivo vence pronto',
+      'todo':      daysBefore == 0
+          ? '✅ Una tarea vence HOY'
+          : '✅ Una tarea vence en $daysBefore día${daysBefore != 1 ? "s" : ""}',
     };
 
     for (int i = 0; i < repeatTimes; i++) {
       final notifTime = firstNotif.add(Duration(hours: i * repeatIntervalHrs));
       if (notifTime.isBefore(tz.TZDateTime.now(tz.local))) continue;
-      if (notifTime.isAfter(tz.TZDateTime.from(deadline, tz.local))) continue;
+      // No programar más allá del día del deadline
+      final deadlineTZ = tz.TZDateTime.from(
+          DateTime(deadline.year, deadline.month, deadline.day, 23, 59),
+          tz.local);
+      if (notifTime.isAfter(deadlineTZ)) continue;
 
       await _plugin.zonedSchedule(
         _buildNotifId(itemId, itemType, i),
@@ -262,7 +286,7 @@ class NotificationService {
   }
 
   // ── IDs & helpers ──────────────────────────────────────────────────────────
-  static const _prefixes       = {'goal': 1, 'objective': 2, 'todo': 3};
+  static const _prefixes        = {'goal': 1, 'objective': 2, 'todo': 3};
   static const _habitReminderId = 9999;
 
   int _buildNotifId(int itemId, String itemType, int repetitionIndex) {
@@ -285,6 +309,4 @@ class NotificationService {
 
 // Top-level — requerido por flutter_local_notifications para background
 @pragma('vm:entry-point')
-void notificationBackgroundHandler(NotificationResponse response) {
-  // El cold start lo maneja _checkLaunchNotification() en init()
-}
+void notificationBackgroundHandler(NotificationResponse response) {}
