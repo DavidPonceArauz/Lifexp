@@ -7,7 +7,9 @@ import '../../domain/habit.dart';
 import '../../domain/habits_state.dart';
 import '../../data/habits_repository.dart';
 import '../../../../core/services/widget_service.dart';
-import '../../../../core/services/analytics_service.dart'; // ← nuevo
+import '../../../../core/services/analytics_service.dart';
+import '../../../../core/supabase/supabase_client.dart';
+import 'package:flutter/foundation.dart';
 
 // ── Providers ────────────────────────────────────────────────────────────────
 
@@ -29,6 +31,7 @@ StateNotifierProvider<HabitsNotifier, HabitsState>((ref) {
 class HabitsNotifier extends StateNotifier<HabitsState> {
   final HabitsRepository _repo;
   final String _userId;
+  final _db = SupabaseConfig.client;
 
   HabitsNotifier(this._repo, this._userId) : super(HabitsState()) {
     if (_userId.isNotEmpty) loadAll();
@@ -96,7 +99,7 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
     } catch (_) {}
   }
 
-  // ── Toggle completado (optimistic) ───────────────────────────────────────
+  // ── Toggle completado (optimistic) ────────────────────────────────────────
 
   Future<void> toggleCompleted(int habitId) async {
     if (!state.isToday) return;
@@ -121,7 +124,7 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
     state = state.copyWith(completedCache: newCache, streakData: newStreakData);
     _syncWidget();
 
-    // ── Analytics: habit completado ──────────────────────────────────────
+    // ── Analytics: habit completado ───────────────────────────────────────
     if (newCompleted) {
       final habitData = state.habits.firstWhere(
             (h) => h.id == habitId,
@@ -133,7 +136,6 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
       );
       final currentStreak = streakData.streak as int;
 
-      // Evento base: hábito completado
       AnalyticsService.habitCompleted(
         habitId:       habitId,
         habitName:     habitData.name,
@@ -141,7 +143,6 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
         currentStreak: currentStreak,
       );
 
-      // Milestone de racha: 3, 7, 14, 30, 60, 100 días
       const milestones = [3, 7, 14, 30, 60, 100];
       if (milestones.contains(currentStreak)) {
         AnalyticsService.streakMilestone(
@@ -155,6 +156,9 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
     try {
       final dateStr = state.selectedDate.toIso8601String().substring(0, 10);
       await _repo.toggleCompleted(habitId, _userId, dateStr);
+
+      // ── Evaluar objetivos vinculados a este hábito ────────────────────
+      await _checkLinkedObjectives(habitId);
     } catch (e) {
       final revertCache = Map<int, bool>.from(state.completedCache);
       revertCache[habitId] = wasCompleted;
@@ -172,6 +176,90 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
         error:          e.toString(),
       );
       _syncWidget();
+    }
+  }
+
+  // ── Evaluar objetivos vinculados ──────────────────────────────────────────
+  // Se llama después de cada toggle. Busca objetivos ligados a este hábito
+  // con deadline definido y evalúa si se alcanzó el 80% de completados.
+
+  Future<void> _checkLinkedObjectives(int habitId) async {
+    try {
+      final today = DateTime.now().toIso8601String().substring(0, 10);
+
+      // Buscar objetivos ligados a este hábito que estén pendientes y tengan deadline
+      final objectives = await _db
+          .from('objectives')
+          .select('id, goal_id, created_at, deadline, status')
+          .eq('habit_id', habitId)
+          .eq('type', 'habit')
+          .eq('status', 'pending')
+          .not('deadline', 'is', null)
+          .neq('deadline', '');
+
+      for (final obj in objectives as List) {
+        final objId      = obj['id'] as int;
+        final deadline   = obj['deadline'] as String;
+        final createdAt  = obj['created_at'] as String;
+
+        // Solo evaluar si el deadline ya llegó o pasó
+        if (deadline.compareTo(today) > 0) continue;
+
+        // Calcular período: desde created_at hasta deadline (inclusive)
+        final start = DateTime.parse(createdAt.substring(0, 10));
+        final end   = DateTime.parse(deadline);
+        final totalDays = end.difference(start).inDays + 1;
+        if (totalDays <= 0) continue;
+
+        // Contar días completados en habit_logs dentro del período
+        final logs = await _db
+            .from('habit_logs')
+            .select('date')
+            .eq('habit_id', habitId)
+            .eq('completed', true)
+            .gte('date', createdAt.substring(0, 10))
+            .lte('date', deadline);
+
+        final completedDays = (logs as List).length;
+        final ratio = completedDays / totalDays;
+
+        if (ratio >= 0.80) {
+          // ✅ Objetivo cumplido
+          await _db
+              .from('objectives')
+              .update({'status': 'completed'})
+              .eq('id', objId);
+
+          // XP positivo
+          await _repo.applyXp(
+            _userId,
+            50,
+            'Objetivo de hábito completado',
+            'objective_habit_completed',
+            objId,
+            today,
+          );
+        } else {
+          // ❌ Objetivo fallido — deadline pasó y no alcanzó el 80%
+          await _db
+              .from('objectives')
+              .update({'status': 'failed'})
+              .eq('id', objId);
+
+          // Penalización XP
+          await _repo.applyXp(
+            _userId,
+            -80,
+            'Objetivo de hábito fallido (${(ratio * 100).round()}% completado)',
+            'objective_habit_failed',
+            objId,
+            today,
+          );
+        }
+      }
+    } catch (e) {
+      // Silencioso — no interrumpir el flujo principal
+      debugPrint('_checkLinkedObjectives error: $e');
     }
   }
 
@@ -198,7 +286,6 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
       );
       _syncWidget();
 
-      // ── Analytics: hábito creado ─────────────────────────────────────
       AnalyticsService.habitCreated(
         habitName: name,
         category:  category.isEmpty ? 'General' : category,
@@ -231,7 +318,6 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
   Future<bool> applyManualFreeze(int habitId) async {
     final ok = await _repo.applyManualFreeze(habitId, _userId);
     if (ok) {
-      // ── Analytics: freeze usado ──────────────────────────────────────
       final habitData = state.habits.firstWhere(
             (h) => h.id == habitId,
         orElse: () => state.habits.first,
@@ -240,7 +326,6 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
         habitId:   habitId,
         habitName: habitData.name,
       );
-
       state = state.copyWith(freezes: state.freezes - 1);
       await _loadScreenData(state.selectedDate);
     }

@@ -9,9 +9,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   sqflite: ^2.3.0
   path: ^1.8.3
-  intl: ^0.19.0
+  intl: ^0.20.2
   shared_preferences: ^2.2.2
   google_fonts: ^6.1.0
   animate_do: ^3.3.4
@@ -39,6 +41,12 @@ dependencies:
 
   # Monitoreo de actividad Usuario
   posthog_flutter: ^5.0.0
+
+  # Editor de texto mas complejo
+  flutter_quill: ^11.5.0
+
+  # Para subir imagenes
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:

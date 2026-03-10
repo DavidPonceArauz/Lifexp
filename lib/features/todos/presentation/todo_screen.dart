@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -10,6 +11,7 @@ import '../domain/todo.dart';
 import '../../../core/widgets/empty_state_widget.dart';
 import '../domain/todos_state.dart';
 import 'providers/todos_provider.dart';
+import '../../../core/widgets/rich_description_editor.dart';
 
 class TodoScreen extends ConsumerStatefulWidget {
   final String userId;
@@ -86,7 +88,7 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
     final c = context.ac;
     final isEdit = todo != null;
     final titleCtrl = TextEditingController(text: isEdit ? todo.title : '');
-    final descCtrl  = TextEditingController(text: isEdit ? todo.description : '');
+    String descJson = isEdit ? todo.description : '';
     String priority = isEdit ? (_pLabels[todo.priority] ?? 'MEDIA') : 'MEDIA';
     String? deadline = isEdit ? todo.deadline : null;
     NotificationConfig notifConfig = const NotificationConfig();
@@ -184,9 +186,37 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
                     onCleared: () => setDlg(() => selectedCategory = null)),
                 const SizedBox(height: 14),
                 _lbl(c, 'DESCRIPCION (opcional)'),
-                TextField(controller: descCtrl, maxLines: 3,
-                    style: GoogleFonts.pressStart2p(color: c.textPrimary, fontSize: 9),
-                    decoration: _deco(c, 'Detalles adicionales...')),
+                GestureDetector(
+                  onTap: () async {
+                    final result = await showRichEditorSheet(context,
+                        initialJson: descJson,
+                        title: titleCtrl.text.isNotEmpty ? titleCtrl.text : 'Descripción',
+                        accentColor: AutumnColors.accentOrange);
+                    if (result != null) setDlg(() => descJson = result);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(color: c.bgSurface, borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                            color: quillJsonToPlainText(descJson).isNotEmpty
+                                ? AutumnColors.accentOrange : c.divider,
+                            width: quillJsonToPlainText(descJson).isNotEmpty ? 1.5 : 1)),
+                    child: Row(children: [
+                      Icon(Icons.edit_note_rounded, size: 14,
+                          color: quillJsonToPlainText(descJson).isNotEmpty
+                              ? AutumnColors.accentOrange : c.textDisabled),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(
+                          quillJsonToPlainText(descJson).isNotEmpty
+                              ? quillJsonToPlainText(descJson)
+                              : 'Toca para añadir descripción...',
+                          style: GoogleFonts.pressStart2p(fontSize: 8,
+                              color: quillJsonToPlainText(descJson).isNotEmpty
+                                  ? c.textPrimary : c.textDisabled),
+                          maxLines: 2, overflow: TextOverflow.ellipsis)),
+                    ]),
+                  ),
+                ),
                 const SizedBox(height: 14),
                 _lbl(c, 'RECORDATORIO (opcional)'),
                 NotificationConfigWidget(config: notifConfig,
@@ -210,13 +240,13 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
                     int savedId;
                     if (isEdit) {
                       await ref.read(todosProvider.notifier).updateTodo(todo!.id,
-                          title: titleCtrl.text, description: descCtrl.text,
+                          title: titleCtrl.text, description: descJson,
                           priority: pm[priority] ?? 2, deadline: deadline,
                           category: selectedCategory);
                       savedId = todo.id;
                     } else {
                       savedId = await ref.read(todosProvider.notifier).createTodo(
-                          title: titleCtrl.text, description: descCtrl.text,
+                          title: titleCtrl.text, description: descJson,
                           priority: pm[priority] ?? 2, deadline: deadline,
                           category: selectedCategory);
                     }
@@ -255,113 +285,179 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
       'in_progress': AutumnColors.accentGold,
       'done': AutumnColors.mossGreen,
     };
-    showDialog(context: context, builder: (ctx) => Dialog(
-      backgroundColor: c.bgCard,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-      child: SizedBox(width: 380, child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(width: double.infinity, padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-                color: (_pColors[todo.priority] ?? AutumnColors.accentOrange).withOpacity(0.1),
-                borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(16), topRight: Radius.circular(16)),
-                border: Border(bottom: BorderSide(
-                    color: (_pColors[todo.priority] ?? AutumnColors.accentOrange).withOpacity(0.3)))),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                        color: _pColors[todo.priority] ?? AutumnColors.accentOrange,
-                        borderRadius: BorderRadius.circular(6)),
-                    child: Text(_pLabels[todo.priority] ?? '',
-                        style: GoogleFonts.pressStart2p(fontSize: 7, color: c.bgCard))),
-                const SizedBox(width: 8),
-                Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                        color: (statusColors[todo.status] ?? AutumnColors.accentOrange).withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: (statusColors[todo.status] ?? AutumnColors.accentOrange).withOpacity(0.5))),
-                    child: Text(statusLabels[todo.status] ?? todo.status,
-                        style: GoogleFonts.pressStart2p(fontSize: 7,
-                            color: statusColors[todo.status] ?? AutumnColors.accentOrange))),
-                const Spacer(),
-                GestureDetector(onTap: () => Navigator.pop(ctx),
-                    child: Icon(Icons.close, color: c.textDisabled, size: 20)),
-              ]),
-              const SizedBox(height: 12),
-              Text(todo.title.toUpperCase(),
-                  style: GoogleFonts.pressStart2p(
-                      fontSize: 12, color: c.textPrimary, fontWeight: FontWeight.bold)),
-            ])),
-        Padding(padding: const EdgeInsets.all(18),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              if (todo.description.isNotEmpty) ...[
-                Text('DESCRIPCION', style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
-                const SizedBox(height: 6),
-                Text(todo.description,
-                    style: GoogleFonts.pressStart2p(fontSize: 9, color: c.textSecondary, height: 1.8)),
-                const SizedBox(height: 14),
-              ],
-              Row(children: [
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('FECHA LIMITE',
-                      style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
-                  const SizedBox(height: 4),
+
+    // Controller Quill para el detail — interactivo con checklist
+    final quillCtrl = QuillController(
+      document: quillDocumentFromJson(todo.description),
+      selection: const TextSelection.collapsed(offset: 0),
+    );
+    final focusNode = FocusNode();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: c.bgCard,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+        child: SizedBox(
+          width: 380,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            // ── Header ──────────────────────────────────────────────────────
+            Container(width: double.infinity, padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                    color: (_pColors[todo.priority] ?? AutumnColors.accentOrange).withOpacity(0.1),
+                    borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(16), topRight: Radius.circular(16)),
+                    border: Border(bottom: BorderSide(
+                        color: (_pColors[todo.priority] ?? AutumnColors.accentOrange).withOpacity(0.3)))),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    Icon(Icons.calendar_today_rounded, size: 12, color: di['color'] as Color),
-                    const SizedBox(width: 6),
-                    Text(todo.deadline ?? 'Sin fecha',
-                        style: GoogleFonts.pressStart2p(fontSize: 9, color: di['color'] as Color)),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                            color: _pColors[todo.priority] ?? AutumnColors.accentOrange,
+                            borderRadius: BorderRadius.circular(6)),
+                        child: Text(_pLabels[todo.priority] ?? '',
+                            style: GoogleFonts.pressStart2p(fontSize: 7, color: c.bgCard))),
+                    const SizedBox(width: 8),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                            color: (statusColors[todo.status] ?? AutumnColors.accentOrange).withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                                color: (statusColors[todo.status] ?? AutumnColors.accentOrange).withOpacity(0.5))),
+                        child: Text(statusLabels[todo.status] ?? todo.status,
+                            style: GoogleFonts.pressStart2p(fontSize: 7,
+                                color: statusColors[todo.status] ?? AutumnColors.accentOrange))),
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: () {
+                        // Guardar cambios del editor al cerrar
+                        final newJson = quillDeltaToJson(quillCtrl.document);
+                        if (newJson != todo.description) {
+                          ref.read(todosProvider.notifier).updateTodo(
+                            todo.id,
+                            title: todo.title,
+                            description: newJson,
+                            priority: todo.priority,
+                            deadline: todo.deadline,
+                            category: todo.category,
+                          );
+                        }
+                        quillCtrl.dispose();
+                        focusNode.dispose();
+                        Navigator.pop(ctx);
+                      },
+                      child: Icon(Icons.close, color: c.textDisabled, size: 20),
+                    ),
                   ]),
+                  const SizedBox(height: 12),
+                  Text(todo.title.toUpperCase(),
+                      style: GoogleFonts.pressStart2p(
+                          fontSize: 12, color: c.textPrimary, fontWeight: FontWeight.bold)),
                 ])),
-                if ((di['text'] as String).isNotEmpty)
-                  Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                          color: (di['color'] as Color).withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: (di['color'] as Color).withOpacity(0.4))),
-                      child: Text(di['text'] as String,
-                          style: GoogleFonts.pressStart2p(fontSize: 8, color: di['color'] as Color))),
-              ]),
-              if (todo.createdAt.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text('CREADA', style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
-                const SizedBox(height: 4),
-                Text(todo.createdAt.substring(0, 10),
-                    style: GoogleFonts.pressStart2p(fontSize: 8, color: c.textDisabled)),
-              ],
-            ])),
-        Divider(height: 1, color: c.divider),
-        Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 16), child: Row(children: [
-          Expanded(child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AutumnColors.accentOrange),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  padding: const EdgeInsets.symmetric(vertical: 10)),
-              onPressed: () { Navigator.pop(ctx); _openTodoDialog(todo: todo); },
-              icon: const Icon(Icons.edit_rounded, size: 14, color: AutumnColors.accentOrange),
-              label: Text('EDITAR',
-                  style: GoogleFonts.pressStart2p(fontSize: 8, color: AutumnColors.accentOrange)))),
-          const SizedBox(width: 10),
-          Expanded(child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(backgroundColor: AutumnColors.accentRed,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  padding: const EdgeInsets.symmetric(vertical: 10)),
-              onPressed: () async {
-                Navigator.pop(ctx);
-                await NotificationService()
-                    .cancelItemNotifications(itemId: todo.id, itemType: 'todo');
-                await ref.read(todosProvider.notifier).deleteTodo(todo.id);
-              },
-              icon: const Icon(Icons.delete_outline, size: 14, color: Colors.white),
-              label: Text('ELIMINAR',
-                  style: GoogleFonts.pressStart2p(fontSize: 8, color: Colors.white)))),
-        ])),
-      ])),
-    ));
+            // ── Descripción interactiva ──────────────────────────────────────
+            if (todo.description.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
+                child: Text('DESCRIPCION',
+                    style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                constraints: const BoxConstraints(maxHeight: 220),
+                margin: const EdgeInsets.symmetric(horizontal: 18),
+                decoration: BoxDecoration(
+                  color: c.bgSurface,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: c.divider),
+                ),
+                child: QuillEditor(
+                  controller: quillCtrl,
+                  focusNode: focusNode,
+                  scrollController: ScrollController(),
+                  config: QuillEditorConfig(
+                    scrollable: true,
+                    autoFocus: false,
+                    expands: false,
+                    padding: const EdgeInsets.all(12),
+                    placeholder: '',
+                  ),
+                ),
+              ),
+            ],
+            // ── Fecha y metadata ─────────────────────────────────────────────
+            Padding(padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('FECHA LIMITE',
+                          style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
+                      const SizedBox(height: 4),
+                      Row(children: [
+                        Icon(Icons.calendar_today_rounded, size: 12, color: di['color'] as Color),
+                        const SizedBox(width: 6),
+                        Text(todo.deadline ?? 'Sin fecha',
+                            style: GoogleFonts.pressStart2p(fontSize: 9, color: di['color'] as Color)),
+                      ]),
+                    ])),
+                    if ((di['text'] as String).isNotEmpty && todo.status != 'done')
+                      Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                              color: (di['color'] as Color).withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: (di['color'] as Color).withOpacity(0.4))),
+                          child: Text(di['text'] as String,
+                              style: GoogleFonts.pressStart2p(fontSize: 8, color: di['color'] as Color))),
+                  ]),
+                  if (todo.createdAt.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text('CREADA', style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
+                    const SizedBox(height: 4),
+                    Text(todo.createdAt.substring(0, 10),
+                        style: GoogleFonts.pressStart2p(fontSize: 8, color: c.textDisabled)),
+                  ],
+                ])),
+            Divider(height: 1, color: c.divider),
+            Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                child: Row(children: [
+                  Expanded(child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: AutumnColors.accentOrange),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(vertical: 10)),
+                      onPressed: () {
+                        quillCtrl.dispose();
+                        focusNode.dispose();
+                        Navigator.pop(ctx);
+                        _openTodoDialog(todo: todo);
+                      },
+                      icon: const Icon(Icons.edit_rounded, size: 14, color: AutumnColors.accentOrange),
+                      label: Text('EDITAR',
+                          style: GoogleFonts.pressStart2p(fontSize: 8, color: AutumnColors.accentOrange)))),
+                  const SizedBox(width: 10),
+                  Expanded(child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: AutumnColors.accentRed,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(vertical: 10)),
+                      onPressed: () async {
+                        quillCtrl.dispose();
+                        focusNode.dispose();
+                        Navigator.pop(ctx);
+                        await NotificationService()
+                            .cancelItemNotifications(itemId: todo.id, itemType: 'todo');
+                        await ref.read(todosProvider.notifier).deleteTodo(todo.id);
+                      },
+                      icon: const Icon(Icons.delete_outline, size: 14, color: Colors.white),
+                      label: Text('ELIMINAR',
+                          style: GoogleFonts.pressStart2p(fontSize: 8, color: Colors.white)))),
+                ])),
+          ]),
+        ),
+      ),
+    );
   }
 
-  // ── KANBAN COLUMN — FIX: Flexible + maxLines:1 elimina overflow ───────────
+  // ── KANBAN COLUMN ─────────────────────────────────────────────────────────
 
   Widget _buildColumn(BuildContext context, String title, String status,
       Color color, List<Todo> items) {
@@ -383,30 +479,22 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
                 padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 6),
                 decoration: BoxDecoration(color: color.withOpacity(0.12),
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(11))),
-                child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
+                child: Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min,
                     children: [
                       Flexible(child: Text(title,
                           style: GoogleFonts.pressStart2p(fontSize: 7, color: color),
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis)),
+                          textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis)),
                       const SizedBox(width: 4),
                       Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                          decoration: BoxDecoration(
-                              color: color.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(10)),
+                          decoration: BoxDecoration(color: color.withOpacity(0.2), borderRadius: BorderRadius.circular(10)),
                           child: Text('${items.length}',
                               style: GoogleFonts.pressStart2p(fontSize: 6, color: color))),
                     ])),
             Expanded(child: items.isEmpty
                 ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-              SizedBox(width: 40, height: 40,
-                  child: CustomPaint(painter: _EmptyBoxPainter(color: color))),
+              SizedBox(width: 40, height: 40, child: CustomPaint(painter: _EmptyBoxPainter(color: color))),
               const SizedBox(height: 8),
-              Text('vacio', style: GoogleFonts.pressStart2p(
-                  fontSize: 7, color: color.withOpacity(0.35))),
+              Text('vacio', style: GoogleFonts.pressStart2p(fontSize: 7, color: color.withOpacity(0.35))),
             ]))
                 : ListView.separated(
                 padding: const EdgeInsets.all(6),
@@ -434,8 +522,7 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             const Icon(Icons.delete_outline, color: AutumnColors.accentRed, size: 20),
             const SizedBox(height: 2),
-            Text('ELIMINAR',
-                style: GoogleFonts.pressStart2p(fontSize: 6, color: AutumnColors.accentRed)),
+            Text('ELIMINAR', style: GoogleFonts.pressStart2p(fontSize: 6, color: AutumnColors.accentRed)),
           ])),
       secondaryBackground: Container(alignment: Alignment.centerRight,
           padding: const EdgeInsets.only(right: 14),
@@ -445,8 +532,7 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             const Icon(Icons.edit_rounded, color: AutumnColors.accentOrange, size: 20),
             const SizedBox(height: 2),
-            Text('EDITAR',
-                style: GoogleFonts.pressStart2p(fontSize: 6, color: AutumnColors.accentOrange)),
+            Text('EDITAR', style: GoogleFonts.pressStart2p(fontSize: 6, color: AutumnColors.accentOrange)),
           ])),
       confirmDismiss: (direction) async {
         if (direction == DismissDirection.startToEnd) {
@@ -474,8 +560,7 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
       },
       onDismissed: (direction) async {
         if (direction == DismissDirection.startToEnd) {
-          await NotificationService()
-              .cancelItemNotifications(itemId: todo.id, itemType: 'todo');
+          await NotificationService().cancelItemNotifications(itemId: todo.id, itemType: 'todo');
           await ref.read(todosProvider.notifier).deleteTodo(todo.id);
         }
       },
@@ -492,8 +577,7 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
                         style: GoogleFonts.pressStart2p(fontSize: 8, color: c.textPrimary),
                         maxLines: 2, overflow: TextOverflow.ellipsis)))),
         childWhenDragging: Opacity(opacity: 0.3, child: _cardContent(context, todo, di)),
-        child: GestureDetector(
-            onTap: () => _openDetailDialog(todo),
+        child: GestureDetector(onTap: () => _openDetailDialog(todo),
             child: _cardContent(context, todo, di)),
       ),
     );
@@ -506,33 +590,26 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(color: c.bgCard, borderRadius: BorderRadius.circular(10),
           border: Border.all(color: c.divider),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06),
-              blurRadius: 4, offset: const Offset(0, 2))]),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 4, offset: const Offset(0, 2))]),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Container(width: 3, height: 36, margin: const EdgeInsets.only(right: 8),
               decoration: BoxDecoration(color: pColor, borderRadius: BorderRadius.circular(2))),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(todo.title.toUpperCase(),
-                style: GoogleFonts.pressStart2p(
-                    fontSize: 8, color: c.textPrimary, fontWeight: FontWeight.bold),
+                style: GoogleFonts.pressStart2p(fontSize: 8, color: c.textPrimary, fontWeight: FontWeight.bold),
                 maxLines: 2, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 3),
             Row(children: [
-              Flexible(
-                child: Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                    decoration: BoxDecoration(
-                        color: pColor.withOpacity(0.15), borderRadius: BorderRadius.circular(4)),
-                    child: Text(_pLabels[todo.priority] ?? '',
-                        style: GoogleFonts.pressStart2p(fontSize: 6, color: pColor),
-                        maxLines: 1, overflow: TextOverflow.ellipsis)),
-              ),
+              Flexible(child: Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(color: pColor.withOpacity(0.15), borderRadius: BorderRadius.circular(4)),
+                  child: Text(_pLabels[todo.priority] ?? '',
+                      style: GoogleFonts.pressStart2p(fontSize: 6, color: pColor),
+                      maxLines: 1, overflow: TextOverflow.ellipsis))),
               if ((todo.category ?? '').isNotEmpty) ...[
                 const SizedBox(width: 4),
                 Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                    decoration: BoxDecoration(
-                        color: AutumnColors.accentGold.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(4)),
+                    decoration: BoxDecoration(color: AutumnColors.accentGold.withOpacity(0.12), borderRadius: BorderRadius.circular(4)),
                     child: Tooltip(message: todo.category ?? '',
                         child: Text(
                             _categories.firstWhere((cat) => cat['label'] == todo.category,
@@ -544,11 +621,11 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
         ]),
         if (todo.description.isNotEmpty) ...[
           const SizedBox(height: 6),
-          Text(todo.description,
+          Text(quillJsonToPlainText(todo.description),
               style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textSecondary),
               maxLines: 1, overflow: TextOverflow.ellipsis),
         ],
-        if ((di['text'] as String).isNotEmpty) ...[
+        if ((di['text'] as String).isNotEmpty && todo.status != 'done') ...[
           const SizedBox(height: 6),
           Row(children: [
             Icon(Icons.schedule, size: 10, color: di['color'] as Color),
@@ -575,8 +652,7 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
 
     return Container(
       decoration: BoxDecoration(color: c.bgCard, borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-              color: af > 0 ? AutumnColors.accentOrange.withOpacity(0.5) : c.divider)),
+          border: Border.all(color: af > 0 ? AutumnColors.accentOrange.withOpacity(0.5) : c.divider)),
       child: Column(children: [
         GestureDetector(
             onTap: () => setState(() => _filtersOpen = !_filtersOpen),
@@ -584,68 +660,52 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
                 child: Row(children: [
                   const Icon(Icons.filter_list_rounded, size: 16, color: AutumnColors.accentOrange),
                   const SizedBox(width: 8),
-                  Text('FILTROS',
-                      style: GoogleFonts.pressStart2p(fontSize: 8, color: AutumnColors.accentOrange)),
+                  Text('FILTROS', style: GoogleFonts.pressStart2p(fontSize: 8, color: AutumnColors.accentOrange)),
                   if (af > 0) ...[
                     const SizedBox(width: 6),
                     Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                            color: AutumnColors.accentOrange,
-                            borderRadius: BorderRadius.circular(10)),
-                        child: Text('$af',
-                            style: GoogleFonts.pressStart2p(fontSize: 7, color: Colors.white))),
+                        decoration: BoxDecoration(color: AutumnColors.accentOrange, borderRadius: BorderRadius.circular(10)),
+                        child: Text('$af', style: GoogleFonts.pressStart2p(fontSize: 7, color: Colors.white))),
                   ],
                   const Spacer(),
                   if (af > 0) GestureDetector(
-                      onTap: () {
-                        setState(() => _filtersOpen = false);
-                        ref.read(todosProvider.notifier).clearFilters();
-                      },
-                      child: Text('LIMPIAR',
-                          style: GoogleFonts.pressStart2p(fontSize: 7, color: AutumnColors.accentRed))),
+                      onTap: () { setState(() => _filtersOpen = false); ref.read(todosProvider.notifier).clearFilters(); },
+                      child: Text('LIMPIAR', style: GoogleFonts.pressStart2p(fontSize: 7, color: AutumnColors.accentRed))),
                   const SizedBox(width: 8),
-                  Icon(_filtersOpen ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                      size: 18, color: c.textDisabled),
+                  Icon(_filtersOpen ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, size: 18, color: c.textDisabled),
                 ]))),
         AnimatedSize(duration: const Duration(milliseconds: 220), curve: Curves.easeInOut,
           child: _filtersOpen
               ? Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Divider(color: c.divider, height: 14),
-                Text('PRIORIDAD',
-                    style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
+                Text('PRIORIDAD', style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
                 const SizedBox(height: 6),
                 Row(children: ['TODAS', 'ALTA', 'MEDIA', 'BAJA'].map((o) {
                   final sel = o == state.filterPriority;
-                  const pc = {
-                    'ALTA': AutumnColors.accentRed, 'MEDIA': AutumnColors.accentGold,
-                    'BAJA': AutumnColors.mossGreen, 'TODAS': AutumnColors.accentOrange,
-                  };
+                  const pc = {'ALTA': AutumnColors.accentRed, 'MEDIA': AutumnColors.accentGold,
+                    'BAJA': AutumnColors.mossGreen, 'TODAS': AutumnColors.accentOrange};
                   final col = pc[o] ?? AutumnColors.accentOrange;
                   return Expanded(child: GestureDetector(
                       onTap: () => ref.read(todosProvider.notifier).setFilterPriority(o),
                       child: AnimatedContainer(duration: const Duration(milliseconds: 130),
                           margin: const EdgeInsets.only(right: 5),
                           padding: const EdgeInsets.symmetric(vertical: 7),
-                          decoration: BoxDecoration(
-                              color: sel ? col : c.bgSurface,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: sel ? col : c.divider)),
+                          decoration: BoxDecoration(color: sel ? col : c.bgSurface,
+                              borderRadius: BorderRadius.circular(8), border: Border.all(color: sel ? col : c.divider)),
                           child: Text(o, textAlign: TextAlign.center,
                               style: GoogleFonts.pressStart2p(fontSize: 7,
                                   color: sel ? c.bgCard : c.textSecondary,
                                   fontWeight: sel ? FontWeight.bold : FontWeight.normal)))));
                 }).toList()),
                 const SizedBox(height: 10),
-                Text('ORDENAR POR',
-                    style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
+                Text('ORDENAR POR', style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
                 const SizedBox(height: 6),
                 Row(children: [
-                  {'v': 'FECHA',     'i': Icons.calendar_today_rounded},
+                  {'v': 'FECHA', 'i': Icons.calendar_today_rounded},
                   {'v': 'PRIORIDAD', 'i': Icons.flag_rounded},
                 ].map((item) {
-                  final v = item['v'] as String;
-                  final ico = item['i'] as IconData;
+                  final v = item['v'] as String; final ico = item['i'] as IconData;
                   final sel = state.filterSort == v;
                   return Expanded(child: GestureDetector(
                       onTap: () => ref.read(todosProvider.notifier).setFilterSort(v),
@@ -655,8 +715,7 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
                           decoration: BoxDecoration(
                               color: sel ? AutumnColors.accentOrange : c.bgSurface,
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                  color: sel ? AutumnColors.accentOrange : c.divider)),
+                              border: Border.all(color: sel ? AutumnColors.accentOrange : c.divider)),
                           child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                             Icon(ico, size: 11, color: sel ? c.bgCard : c.textSecondary),
                             const SizedBox(width: 5),
@@ -667,8 +726,7 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
                 }).toList()),
                 if (cats.isNotEmpty) ...[
                   const SizedBox(height: 10),
-                  Text('CATEGORIA',
-                      style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
+                  Text('CATEGORIA', style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
                   const SizedBox(height: 6),
                   Wrap(spacing: 5, runSpacing: 5, children: [
                     GestureDetector(
@@ -676,32 +734,25 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
                         child: AnimatedContainer(duration: const Duration(milliseconds: 130),
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                             decoration: BoxDecoration(
-                                color: state.filterCategory == null
-                                    ? AutumnColors.accentOrange : c.bgSurface,
+                                color: state.filterCategory == null ? AutumnColors.accentOrange : c.bgSurface,
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                    color: state.filterCategory == null
-                                        ? AutumnColors.accentOrange : c.divider)),
+                                border: Border.all(color: state.filterCategory == null ? AutumnColors.accentOrange : c.divider)),
                             child: Text('TODAS', style: GoogleFonts.pressStart2p(fontSize: 7,
-                                color: state.filterCategory == null
-                                    ? Colors.white : c.textSecondary)))),
+                                color: state.filterCategory == null ? Colors.white : c.textSecondary)))),
                     ...cats.map((cat) {
                       final sel = state.filterCategory == cat;
                       final emoji = _categories.firstWhere((cx) => cx['label'] == cat,
                           orElse: () => {'emoji': '📁', 'label': ''})['emoji']!;
                       return GestureDetector(
-                          onTap: () => ref.read(todosProvider.notifier)
-                              .setFilterCategory(sel ? null : cat),
+                          onTap: () => ref.read(todosProvider.notifier).setFilterCategory(sel ? null : cat),
                           child: AnimatedContainer(duration: const Duration(milliseconds: 130),
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                               decoration: BoxDecoration(
                                   color: sel ? AutumnColors.accentOrange : c.bgSurface,
                                   borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                      color: sel ? AutumnColors.accentOrange : c.divider)),
-                              child: Text('$emoji $cat',
-                                  style: GoogleFonts.pressStart2p(fontSize: 7,
-                                      color: sel ? Colors.white : c.textSecondary))));
+                                  border: Border.all(color: sel ? AutumnColors.accentOrange : c.divider)),
+                              child: Text('$emoji $cat', style: GoogleFonts.pressStart2p(fontSize: 7,
+                                  color: sel ? Colors.white : c.textSecondary))));
                     }),
                   ]),
                 ],
@@ -723,8 +774,7 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
       optionsBuilder: (tv) {
         final q = tv.text.toLowerCase();
         if (q.isEmpty) return _categories.map((cat) => '${cat["emoji"]} ${cat["label"]}');
-        return _categories
-            .where((cat) => cat['label']!.toLowerCase().contains(q))
+        return _categories.where((cat) => cat['label']!.toLowerCase().contains(q))
             .map((cat) => '${cat["emoji"]} ${cat["label"]}');
       },
       onSelected: (val) => onSelected(val.substring(val.indexOf(' ') + 1)),
@@ -742,11 +792,9 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
                   style: const TextStyle(fontSize: 16)))
                   : Icon(Icons.folder_outlined, size: 16, color: c.textDisabled),
               suffixIcon: selectedCategory != null
-                  ? const Icon(Icons.check_circle, size: 16, color: AutumnColors.accentOrange)
-                  : null,
+                  ? const Icon(Icons.check_circle, size: 16, color: AutumnColors.accentOrange) : null,
               filled: true, fillColor: c.bgSurface,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: c.divider)),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: c.divider)),
               focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
                   borderSide: const BorderSide(color: AutumnColors.accentOrange, width: 1.5)),
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12))),
@@ -759,58 +807,41 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
                       itemBuilder: (_, i) {
                         final opt = options.elementAt(i);
                         return InkWell(onTap: () => onSel(opt),
-                            child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                child: Text(opt, style: GoogleFonts.pressStart2p(
-                                    fontSize: 9, color: c.textPrimary))));
+                            child: Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                child: Text(opt, style: GoogleFonts.pressStart2p(fontSize: 9, color: c.textPrimary))));
                       })))),
     );
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  Widget _lbl(dynamic c, String t) => Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text(t, style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)));
 
-  Widget _lbl(dynamic c, String t) {
-    return Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Text(t, style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)));
-  }
-
-  InputDecoration _deco(dynamic c, String hint) {
-    return InputDecoration(
-        hintText: hint,
-        hintStyle: GoogleFonts.pressStart2p(fontSize: 8, color: c.textDisabled),
-        filled: true, fillColor: c.bgSurface,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: c.divider)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: AutumnColors.accentOrange, width: 1.5)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12));
-  }
-
-  // ── BUILD ─────────────────────────────────────────────────────────────────
+  InputDecoration _deco(dynamic c, String hint) => InputDecoration(
+      hintText: hint,
+      hintStyle: GoogleFonts.pressStart2p(fontSize: 8, color: c.textDisabled),
+      filled: true, fillColor: c.bgSurface,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: c.divider)),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AutumnColors.accentOrange, width: 1.5)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12));
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
     final c     = context.ac;
     final state = ref.watch(todosProvider);
-
     return Scaffold(
       backgroundColor: c.bgPrimary,
       appBar: AppBar(
         backgroundColor: c.bgCard, elevation: 0, automaticallyImplyLeading: false,
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('SIDE QUESTS',
-              style: GoogleFonts.pressStart2p(fontSize: 13, color: AutumnColors.accentOrange)),
-          Text('Arrastra - Desliza - Toca',
-              style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
+          Text('SIDE QUESTS', style: GoogleFonts.pressStart2p(fontSize: 13, color: AutumnColors.accentOrange)),
+          Text('Arrastra - Desliza - Toca', style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
         ]),
         actions: [
-          IconButton(
-              icon: const Icon(Icons.add_circle_outline,
-                  color: AutumnColors.accentOrange, size: 24),
-              tooltip: 'Nueva tarea',
-              onPressed: () => _openTodoDialog()),
+          IconButton(icon: const Icon(Icons.add_circle_outline, color: AutumnColors.accentOrange, size: 24),
+              tooltip: 'Nueva tarea', onPressed: () => _openTodoDialog()),
         ],
         bottom: PreferredSize(preferredSize: const Size.fromHeight(2),
             child: Container(height: 2, color: AutumnColors.accentOrange)),
@@ -835,19 +866,16 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
             ? PixelEmptyState(type: EmptyStateType.todos, onAction: () => _openTodoDialog())
             : Padding(padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
             child: Row(children: [
-              // Titulos cortos para evitar overflow en el header kanban
-              _buildColumn(context, 'PEND.',  'pending',     AutumnColors.accentOrange, state.pending),
+              _buildColumn(context, 'PEND.', 'pending', AutumnColors.accentOrange, state.pending),
               const SizedBox(width: 6),
-              _buildColumn(context, 'PROC.',  'in_progress', AutumnColors.accentGold,   state.inProgress),
+              _buildColumn(context, 'PROC.', 'in_progress', AutumnColors.accentGold, state.inProgress),
               const SizedBox(width: 6),
-              _buildColumn(context, 'HECHO',  'done',        AutumnColors.mossGreen,    state.done),
+              _buildColumn(context, 'HECHO', 'done', AutumnColors.mossGreen, state.done),
             ]))),
       ]),
     );
   }
 }
-
-// ── Pixel art painter ─────────────────────────────────────────────────────────
 
 class _EmptyBoxPainter extends CustomPainter {
   final Color color;

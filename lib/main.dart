@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
@@ -11,7 +13,7 @@ import 'core/supabase/supabase_client.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/widget_service.dart';
 import 'core/services/sentry_service.dart';
-import 'core/services/analytics_service.dart'; // ← nuevo
+import 'core/services/analytics_service.dart';
 import 'features/auth/presentation/login_screen.dart';
 import 'features/auth/presentation/register_screen.dart';
 import 'features/auth/presentation/reset_password_screen.dart';
@@ -39,7 +41,7 @@ Future<void> main() async {
       await initializeDateFormatting('es', null);
       await NotificationService().init();
       await WidgetService.init();
-      await AnalyticsService.init(); // ← PostHog
+      await AnalyticsService.init();
 
       runApp(
         const ProviderScope(
@@ -128,6 +130,19 @@ class _LifeXPAppState extends ConsumerState<LifeXPApp> {
       themeMode: themeMode,
       navigatorKey: _navigatorKey,
       navigatorObservers: [SentryNavigatorObserver()],
+
+      // ── Localizations para flutter_quill ────────────────────────────────
+      localizationsDelegates: const [
+        FlutterQuillLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('es'),
+        Locale('en'),
+      ],
+
       initialRoute: '/',
       onGenerateRoute: (settings) {
         final args = settings.arguments;
