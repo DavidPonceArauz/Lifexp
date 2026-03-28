@@ -21,6 +21,8 @@ class CalendarEvent {
   final String? time;
   final String color;
   final String notes;
+  final String? category;
+  final int? repeatGroupId;
 
   const CalendarEvent({
     required this.id,
@@ -29,27 +31,22 @@ class CalendarEvent {
     this.time,
     required this.color,
     required this.notes,
+    this.category,
+    this.repeatGroupId,
   });
 
   factory CalendarEvent.fromMap(Map<String, dynamic> m) => CalendarEvent(
-    id:    m['id'] as int,
-    title: m['title'] as String,
-    date:  (m['date'] as String).substring(0, 10),
-    time:  m['time'] as String?,
-    color: m['color'] as String? ?? 'orange',
-    notes: m['notes'] as String? ?? '',
+    id:            m['id'] as int,
+    title:         m['title'] as String,
+    date:          (m['date'] as String).substring(0, 10),
+    time:          m['time'] as String?,
+    color:         'blue', // todos los eventos son azul fijo
+    notes:         m['notes'] as String? ?? '',
+    category:      m['category'] as String?,
+    repeatGroupId: m['repeat_group_id'] as int?,
   );
 
-  Color get flutterColor {
-    switch (color) {
-      case 'orange': return AutumnColors.accentOrange;
-      case 'gold':   return AutumnColors.accentGold;
-      case 'green':  return AutumnColors.mossGreen;
-      case 'red':    return AutumnColors.accentRed;
-      case 'blue':   return const Color(0xFF5B9BD5);
-      default:       return AutumnColors.accentOrange;
-    }
-  }
+  Color get flutterColor => const Color(0xFF5B9BD5); // azul fijo
 }
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -267,7 +264,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         _db.from('objectives').select('deadline').eq('status', 'pending')
             .not('deadline', 'is', null).gte('deadline', from).lte('deadline', to),
         // Eventos propios del calendario
-        _db.from('calendar_events').select('id, title, date, time, color, notes')
+        _db.from('calendar_events').select('id, title, date, time, color, notes, category, repeat_group_id')
             .eq('user_id', widget.userId).gte('date', from).lte('date', to).order('date'),
       ]);
 
@@ -296,42 +293,103 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   // ── CRUD eventos propios ──────────────────────────────────────────────────
 
-  Future<void> _createCalendarEvent(String title, String date, String? time,
-      String color, String notes, [NotificationConfig? notifConfig]) async {
+  Future<void> _createCalendarEvent({
+    required String title,
+    required String date,
+    String? time,
+    String? notes,
+    String? category,
+    NotificationConfig? notifConfig,
+    // Repetición
+    List<int>? repeatWeekdays, // 1=Lun ... 7=Dom
+    DateTime? repeatUntil,     // null = nunca termina
+  }) async {
     try {
-      final result = await _db.from('calendar_events').insert({
-        'user_id': widget.userId,
-        'title': title.trim(),
-        'date': date,
-        'time': time,
-        'color': color,
-        'notes': notes.trim(),
-      }).select('id').single();
+      // Generar repeat_group_id único si hay repetición
+      final hasRepeat = repeatWeekdays != null && repeatWeekdays.isNotEmpty;
+      final repeatGroupId = hasRepeat
+          ? DateTime.now().millisecondsSinceEpoch
+          : null;
 
-      // Programar notificación para el evento si está habilitada
-      final eventId = result['id'] as int;
-      if (notifConfig != null && notifConfig.enabled) {
-        await NotificationService().scheduleCalendarEventNotification(
-          eventId: eventId,
-          title: title.trim(),
-          date: date,
-          time: time,
-          notifConfig: notifConfig.toConfigMap(),
-          notes: notes.trim().isNotEmpty ? notes.trim() : null,
-        );
+      // Calcular todas las fechas a insertar
+      final dates = <String>[];
+      if (!hasRepeat) {
+        dates.add(date);
+      } else {
+        // Fecha de inicio = la fecha seleccionada
+        var current = DateTime.parse(date);
+        // Fecha fin = repeatUntil o 1 año por defecto
+        final endDate = repeatUntil ??
+            DateTime.parse(date).add(const Duration(days: 365));
+
+        while (!current.isAfter(endDate)) {
+          if (repeatWeekdays.contains(current.weekday)) {
+            dates.add(current.toIso8601String().substring(0, 10));
+          }
+          current = current.add(const Duration(days: 1));
+        }
+      }
+
+      if (dates.isEmpty) return;
+
+      // Insertar todos los eventos
+      for (final d in dates) {
+        final result = await _db.from('calendar_events').insert({
+          'user_id':         widget.userId,
+          'title':           title.trim(),
+          'date':            d,
+          'time':            time,
+          'color':           'blue',
+          'notes':           notes?.trim() ?? '',
+          'category':        category,
+          'repeat_group_id': repeatGroupId,
+        }).select('id').single();
+
+        // Notificación solo para la primera fecha o si no hay repetición
+        final eventId = result['id'] as int;
+        if (notifConfig != null && notifConfig.enabled && d == dates.first) {
+          try {
+            await NotificationService().scheduleCalendarEventNotification(
+              eventId: eventId,
+              title: title.trim(),
+              date: d,
+              time: time,
+              notifConfig: notifConfig.toConfigMap(),
+              notes: notes?.trim().isNotEmpty == true ? notes!.trim() : null,
+            );
+          } catch (_) {}
+        }
       }
 
       await _loadCalendarEvents();
     } catch (e) { debugPrint('createCalendarEvent error: $e'); }
   }
 
-  Future<void> _deleteCalendarEvent(int id) async {
+  Future<void> _deleteCalendarEvent(int id, {int? repeatGroupId}) async {
     try {
-      // Cancelar notificación antes de eliminar
       await NotificationService().cancelCalendarEventNotification(id);
       await _db.from('calendar_events').delete().eq('id', id);
       await _loadCalendarEvents();
     } catch (e) { debugPrint('deleteCalendarEvent error: $e'); }
+  }
+
+  Future<void> _deleteCalendarSeries(int repeatGroupId) async {
+    try {
+      // Cancelar notificaciones de todos los eventos de la serie
+      final events = await _db
+          .from('calendar_events')
+          .select('id')
+          .eq('repeat_group_id', repeatGroupId);
+      for (final e in events as List) {
+        await NotificationService()
+            .cancelCalendarEventNotification(e['id'] as int);
+      }
+      await _db
+          .from('calendar_events')
+          .delete()
+          .eq('repeat_group_id', repeatGroupId);
+      await _loadCalendarEvents();
+    } catch (e) { debugPrint('deleteCalendarSeries error: $e'); }
   }
 
   Future<void> _checkFreezeNotification() async {
@@ -708,16 +766,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                     fontSize: 7, color: c.textSecondary), maxLines: 2, overflow: TextOverflow.ellipsis),
                               ],
                             ])),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline, size: 16, color: AutumnColors.accentRed),
+                            PopupMenuButton<String>(
+                              icon: const Icon(Icons.delete_outline,
+                                  size: 16, color: AutumnColors.accentRed),
                               padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                              onPressed: () async {
-                                await _deleteCalendarEvent(e.id);
-                                setSheet(() {
-                                  dayOwnEvents.removeWhere((ev) => ev.id == e.id);
-                                });
+                              color: c.bgCard,
+                              onSelected: (val) async {
+                                if (val == 'single') {
+                                  await _deleteCalendarEvent(e.id);
+                                  setSheet(() {
+                                    dayOwnEvents.removeWhere((ev) => ev.id == e.id);
+                                  });
+                                } else if (val == 'series' &&
+                                    e.repeatGroupId != null) {
+                                  await _deleteCalendarSeries(e.repeatGroupId!);
+                                  setSheet(() => dayOwnEvents.clear());
+                                }
                               },
+                              itemBuilder: (_) => [
+                                PopupMenuItem(value: 'single',
+                                    child: Text('Eliminar este evento',
+                                        style: GoogleFonts.pressStart2p(
+                                            fontSize: 8,
+                                            color: AutumnColors.accentRed))),
+                                if (e.repeatGroupId != null)
+                                  PopupMenuItem(value: 'series',
+                                      child: Text('Eliminar toda la serie',
+                                          style: GoogleFonts.pressStart2p(
+                                              fontSize: 8,
+                                              color: AutumnColors.accentRed))),
+                              ],
                             ),
                           ]),
                         ),
@@ -757,155 +835,539 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final c = context.ac;
     final titleCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
-    String selectedColor = 'blue';
     TimeOfDay? selectedTime;
+    String? selectedCategory;
     NotificationConfig notifConfig = const NotificationConfig();
 
-    const colorOptions = [
-      {'key': 'blue',   'label': 'Azul',    'color': Color(0xFF5B9BD5)},
-      {'key': 'orange', 'label': 'Naranja', 'color': AutumnColors.accentOrange},
-      {'key': 'green',  'label': 'Verde',   'color': AutumnColors.mossGreen},
-      {'key': 'gold',   'label': 'Dorado',  'color': AutumnColors.accentGold},
-      {'key': 'red',    'label': 'Rojo',    'color': AutumnColors.accentRed},
-    ];
+    // Repetición
+    final Set<int> selectedWeekdays = {}; // 1=Lun ... 7=Dom
+    bool repeatEnabled = false;
+    DateTime? repeatUntil;
+    bool neverEnds = false;
+
+    const weekdayLabels = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+    const eventColor = Color(0xFF5B9BD5);
 
     showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setDlg) => Dialog(
-        backgroundColor: c.bgCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  const Icon(Icons.event_rounded, color: AutumnColors.accentOrange, size: 16),
-                  const SizedBox(width: 8),
-                  Text('NUEVO EVENTO', style: GoogleFonts.pressStart2p(
-                      fontSize: 10, color: AutumnColors.accentOrange)),
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setDlg) {
+        return Dialog(
+          backgroundColor: c.bgCard,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          child: SizedBox(
+            width: 400,
+            height: MediaQuery.of(ctx).size.height * 0.88,
+            child: Column(children: [
+              // ── Header ──────────────────────────────────────────────────
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
+                decoration: BoxDecoration(
+                  color: c.bgSurface,
+                  borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16)),
+                ),
+                child: Row(children: [
+                  Container(width: 10, height: 10,
+                      decoration: const BoxDecoration(
+                          color: eventColor, shape: BoxShape.circle)),
+                  const SizedBox(width: 10),
+                  Text('NUEVO EVENTO',
+                      style: GoogleFonts.pressStart2p(
+                          fontSize: 10, color: eventColor)),
                 ]),
-                const SizedBox(height: 16),
-                // Título
-                Text('NOMBRE', style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: titleCtrl,
-                  style: GoogleFonts.pressStart2p(color: c.textPrimary, fontSize: 9),
-                  decoration: InputDecoration(
-                    hintText: 'Ej: Cumpleaños de papá...',
-                    hintStyle: GoogleFonts.pressStart2p(fontSize: 8, color: c.textDisabled),
-                    filled: true, fillColor: c.bgSurface,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(color: c.divider)),
-                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: AutumnColors.accentOrange, width: 1.5)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Hora (opcional)
-                Text('HORA (opcional)', style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
-                const SizedBox(height: 6),
-                GestureDetector(
-                  onTap: () async {
-                    final picked = await showTimePicker(context: ctx, initialTime: TimeOfDay.now());
-                    if (picked != null) setDlg(() => selectedTime = picked);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                        color: c.bgSurface, borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: selectedTime != null ? AutumnColors.accentOrange : c.divider,
-                            width: selectedTime != null ? 1.5 : 1)),
-                    child: Row(children: [
-                      Icon(Icons.access_time, size: 14,
-                          color: selectedTime != null ? AutumnColors.accentOrange : c.textDisabled),
-                      const SizedBox(width: 8),
-                      Text(selectedTime != null ? selectedTime!.format(ctx) : 'Sin hora',
-                          style: GoogleFonts.pressStart2p(fontSize: 9,
-                              color: selectedTime != null ? c.textPrimary : c.textDisabled)),
-                      const Spacer(),
-                      if (selectedTime != null) GestureDetector(
-                          onTap: () => setDlg(() => selectedTime = null),
-                          child: Icon(Icons.close, size: 14, color: c.textDisabled)),
-                    ]),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Color
-                Text('COLOR', style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
-                const SizedBox(height: 6),
-                Row(children: colorOptions.map((opt) {
-                  final isSelected = selectedColor == opt['key'];
-                  final col = opt['color'] as Color;
-                  return GestureDetector(
-                    onTap: () => setDlg(() => selectedColor = opt['key'] as String),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      width: 32, height: 32,
-                      margin: const EdgeInsets.only(right: 8),
-                      decoration: BoxDecoration(
-                        color: col,
-                        shape: BoxShape.circle,
-                        border: isSelected ? Border.all(color: Colors.white, width: 2.5) : null,
-                        boxShadow: isSelected ? [BoxShadow(color: col.withValues(alpha:0.5), blurRadius: 6)] : null,
+              ),
+              Divider(height: 1, color: c.divider),
+
+              // ── Contenido scrolleable ────────────────────────────────────
+              Expanded(child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+
+                      // NOMBRE
+                      Text('NOMBRE', style: GoogleFonts.pressStart2p(
+                          fontSize: 7, color: c.textDisabled)),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: titleCtrl,
+                        style: GoogleFonts.pressStart2p(
+                            color: c.textPrimary, fontSize: 9),
+                        decoration: InputDecoration(
+                          hintText: 'Ej: Reunión de trabajo...',
+                          hintStyle: GoogleFonts.pressStart2p(
+                              fontSize: 8, color: c.textDisabled),
+                          filled: true, fillColor: c.bgSurface,
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(color: c.divider)),
+                          focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(
+                                  color: eventColor, width: 1.5)),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                        ),
                       ),
-                      child: isSelected ? const Icon(Icons.check, color: Colors.white, size: 16) : null,
-                    ),
-                  );
-                }).toList()),
-                const SizedBox(height: 12),
-                // Notas
-                Text('NOTAS (opcional)', style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: notesCtrl, maxLines: 2,
-                  style: GoogleFonts.pressStart2p(color: c.textPrimary, fontSize: 9),
-                  decoration: InputDecoration(
-                    hintText: 'Detalles adicionales...',
-                    hintStyle: GoogleFonts.pressStart2p(fontSize: 8, color: c.textDisabled),
-                    filled: true, fillColor: c.bgSurface,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(color: c.divider)),
-                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: AutumnColors.accentOrange, width: 1.5)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Notificación
-                NotificationConfigWidget(
-                  config: notifConfig,
-                  onChanged: (cfg) => setDlg(() => notifConfig = cfg),
-                ),
-                const SizedBox(height: 16),
-                Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                  TextButton(onPressed: () => Navigator.pop(ctx),
-                      child: Text('CANCELAR',
-                          style: GoogleFonts.pressStart2p(fontSize: 9, color: c.textDisabled))),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: AutumnColors.accentOrange,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
-                    onPressed: () async {
-                      if (titleCtrl.text.trim().isEmpty) return;
-                      Navigator.pop(ctx);
-                      final timeStr = selectedTime != null
-                          ? '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}:00'
-                          : null;
-                      await _createCalendarEvent(
-                          titleCtrl.text, date, timeStr, selectedColor, notesCtrl.text, notifConfig);
-                      onAdded();
-                    },
-                    child: Text('GUARDAR',
-                        style: GoogleFonts.pressStart2p(fontSize: 9, color: Colors.white)),
-                  ),
-                ]),
-              ]),
+                      const SizedBox(height: 14),
+
+                      // HORA
+                      Text('HORA (opcional)', style: GoogleFonts.pressStart2p(
+                          fontSize: 7, color: c.textDisabled)),
+                      const SizedBox(height: 6),
+                      GestureDetector(
+                        onTap: () async {
+                          final picked = await showTimePicker(
+                              context: ctx,
+                              initialTime: TimeOfDay.now(),
+                              builder: (ctx2, child) => Theme(
+                                data: ThemeData.light().copyWith(
+                                  colorScheme: const ColorScheme.light(
+                                      primary: eventColor,
+                                      onPrimary: Colors.white),
+                                  timePickerTheme: TimePickerThemeData(
+                                    backgroundColor: c.bgCard,
+                                    hourMinuteTextStyle: GoogleFonts.pressStart2p(
+                                        fontSize: 32),
+                                    dayPeriodTextStyle: GoogleFonts.pressStart2p(
+                                        fontSize: 10),
+                                  ),
+                                ),
+                                child: child!,
+                              ));
+                          if (picked != null) setDlg(() => selectedTime = picked);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 12),
+                          decoration: BoxDecoration(
+                              color: c.bgSurface,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                  color: selectedTime != null
+                                      ? eventColor : c.divider,
+                                  width: selectedTime != null ? 1.5 : 1)),
+                          child: Row(children: [
+                            Icon(Icons.access_time_rounded, size: 14,
+                                color: selectedTime != null
+                                    ? eventColor : c.textDisabled),
+                            const SizedBox(width: 10),
+                            Text(
+                              selectedTime != null
+                                  ? '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}'
+                                  : 'SIN HORA',
+                              style: GoogleFonts.pressStart2p(
+                                  fontSize: 9,
+                                  color: selectedTime != null
+                                      ? c.textPrimary : c.textDisabled),
+                            ),
+                            const Spacer(),
+                            if (selectedTime != null)
+                              GestureDetector(
+                                onTap: () => setDlg(() => selectedTime = null),
+                                child: Icon(Icons.close, size: 14,
+                                    color: c.textDisabled),
+                              ),
+                          ]),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // CATEGORÍA
+                      Text('CATEGORÍA (opcional)', style: GoogleFonts.pressStart2p(
+                          fontSize: 7, color: c.textDisabled)),
+                      const SizedBox(height: 6),
+                      _buildCategorySelector(
+                        c: c,
+                        selectedCategory: selectedCategory,
+                        accentColor: eventColor,
+                        onSelected: (cat) => setDlg(() => selectedCategory = cat),
+                        onCleared: () => setDlg(() => selectedCategory = null),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // NOTAS
+                      Text('NOTAS (opcional)', style: GoogleFonts.pressStart2p(
+                          fontSize: 7, color: c.textDisabled)),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: notesCtrl, maxLines: 2,
+                        style: GoogleFonts.pressStart2p(
+                            color: c.textPrimary, fontSize: 9),
+                        decoration: InputDecoration(
+                          hintText: 'Detalles adicionales...',
+                          hintStyle: GoogleFonts.pressStart2p(
+                              fontSize: 8, color: c.textDisabled),
+                          filled: true, fillColor: c.bgSurface,
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: BorderSide(color: c.divider)),
+                          focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(
+                                  color: eventColor, width: 1.5)),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // REPETICIÓN
+                      GestureDetector(
+                        onTap: () => setDlg(() {
+                          repeatEnabled = !repeatEnabled;
+                          if (!repeatEnabled) {
+                            selectedWeekdays.clear();
+                            repeatUntil = null;
+                            neverEnds = false;
+                          }
+                        }),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                              color: repeatEnabled
+                                  ? eventColor.withValues(alpha: 0.1) : c.bgSurface,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                  color: repeatEnabled ? eventColor : c.divider,
+                                  width: repeatEnabled ? 1.5 : 1)),
+                          child: Row(children: [
+                            Icon(Icons.repeat_rounded, size: 14,
+                                color: repeatEnabled ? eventColor : c.textDisabled),
+                            const SizedBox(width: 10),
+                            Text('REPETICIÓN',
+                                style: GoogleFonts.pressStart2p(
+                                    fontSize: 9,
+                                    color: repeatEnabled
+                                        ? eventColor : c.textDisabled)),
+                            const Spacer(),
+                            Icon(
+                                repeatEnabled
+                                    ? Icons.keyboard_arrow_up
+                                    : Icons.keyboard_arrow_down,
+                                size: 16, color: c.textDisabled),
+                          ]),
+                        ),
+                      ),
+
+                      if (repeatEnabled) ...[
+                        const SizedBox(height: 10),
+                        // Días de la semana
+                        Text('DÍAS', style: GoogleFonts.pressStart2p(
+                            fontSize: 7, color: c.textDisabled)),
+                        const SizedBox(height: 8),
+                        Row(children: List.generate(7, (i) {
+                          final day = i + 1; // 1=Lun ... 7=Dom
+                          final selected = selectedWeekdays.contains(day);
+                          final isWeekend = day == 6 || day == 7;
+                          final dayColor = isWeekend
+                              ? AutumnColors.accentRed : eventColor;
+                          return Expanded(child: GestureDetector(
+                            onTap: () => setDlg(() {
+                              if (selected) {
+                                selectedWeekdays.remove(day);
+                              } else {
+                                selectedWeekdays.add(day);
+                              }
+                            }),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 130),
+                              margin: const EdgeInsets.only(right: 4),
+                              height: 36,
+                              decoration: BoxDecoration(
+                                  color: selected ? dayColor : c.bgSurface,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                      color: selected ? dayColor : c.divider)),
+                              child: Center(child: Text(
+                                weekdayLabels[i],
+                                style: GoogleFonts.pressStart2p(
+                                    fontSize: 7,
+                                    color: selected
+                                        ? Colors.white : c.textSecondary,
+                                    fontWeight: selected
+                                        ? FontWeight.bold : FontWeight.normal),
+                              )),
+                            ),
+                          ));
+                        })),
+                        const SizedBox(height: 12),
+
+                        // Nunca termina toggle
+                        GestureDetector(
+                          onTap: () => setDlg(() {
+                            neverEnds = !neverEnds;
+                            if (neverEnds) repeatUntil = null;
+                          }),
+                          child: Row(children: [
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              width: 20, height: 20,
+                              decoration: BoxDecoration(
+                                  color: neverEnds ? eventColor : c.bgSurface,
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                      color: neverEnds ? eventColor : c.divider,
+                                      width: 1.5)),
+                              child: neverEnds
+                                  ? const Icon(Icons.check,
+                                  color: Colors.white, size: 12)
+                                  : null,
+                            ),
+                            const SizedBox(width: 10),
+                            Text('NUNCA TERMINA',
+                                style: GoogleFonts.pressStart2p(
+                                    fontSize: 8, color: c.textPrimary)),
+                          ]),
+                        ),
+
+                        if (!neverEnds) ...[
+                          const SizedBox(height: 10),
+                          Text('FECHA FIN', style: GoogleFonts.pressStart2p(
+                              fontSize: 7, color: c.textDisabled)),
+                          const SizedBox(height: 6),
+                          GestureDetector(
+                            onTap: () async {
+                              final picked = await showDatePicker(
+                                context: ctx,
+                                initialDate: DateTime.parse(date)
+                                    .add(const Duration(days: 7)),
+                                firstDate: DateTime.parse(date),
+                                lastDate: DateTime.now()
+                                    .add(const Duration(days: 365 * 3)),
+                                builder: (dCtx, child) => Theme(
+                                  data: ThemeData.light().copyWith(
+                                      colorScheme: const ColorScheme.light(
+                                          primary: eventColor,
+                                          onPrimary: Colors.white,
+                                          surface: AutumnColors.bgCard,
+                                          onSurface: AutumnColors.textPrimary)),
+                                  child: child!,
+                                ),
+                              );
+                              if (picked != null) {
+                                setDlg(() => repeatUntil = picked);
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 12),
+                              decoration: BoxDecoration(
+                                  color: c.bgSurface,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                      color: repeatUntil != null
+                                          ? eventColor : c.divider,
+                                      width: repeatUntil != null ? 1.5 : 1)),
+                              child: Row(children: [
+                                Icon(Icons.calendar_today_rounded, size: 14,
+                                    color: repeatUntil != null
+                                        ? eventColor : c.textDisabled),
+                                const SizedBox(width: 10),
+                                Text(
+                                  repeatUntil != null
+                                      ? DateFormat('dd MMM yyyy', 'es')
+                                      .format(repeatUntil!)
+                                      : 'SIN FECHA FIN',
+                                  style: GoogleFonts.pressStart2p(
+                                      fontSize: 9,
+                                      color: repeatUntil != null
+                                          ? c.textPrimary : c.textDisabled),
+                                ),
+                                const Spacer(),
+                                if (repeatUntil != null)
+                                  GestureDetector(
+                                    onTap: () =>
+                                        setDlg(() => repeatUntil = null),
+                                    child: Icon(Icons.close, size: 14,
+                                        color: c.textDisabled),
+                                  ),
+                              ]),
+                            ),
+                          ),
+                        ],
+                      ],
+                      const SizedBox(height: 14),
+
+                      // RECORDATORIO
+                      NotificationConfigWidget(
+                        config: notifConfig,
+                        onChanged: (cfg) => setDlg(() => notifConfig = cfg),
+                      ),
+                    ]),
+              )),
+
+              // ── Botones ──────────────────────────────────────────────────
+              Divider(height: 1, color: c.divider),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: Text('CANCELAR',
+                            style: GoogleFonts.pressStart2p(
+                                fontSize: 9, color: c.textDisabled)),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: eventColor,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8)),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 10)),
+                        onPressed: () async {
+                          if (titleCtrl.text.trim().isEmpty) return;
+
+                          // Validar repetición
+                          if (repeatEnabled &&
+                              selectedWeekdays.isEmpty) {
+                            return; // necesita al menos un día
+                          }
+                          if (repeatEnabled && !neverEnds &&
+                              repeatUntil == null) {
+                            return; // necesita fecha fin o nunca termina
+                          }
+
+                          Navigator.pop(ctx);
+                          final timeStr = selectedTime != null
+                              ? '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}:00'
+                              : null;
+
+                          await _createCalendarEvent(
+                            title: titleCtrl.text,
+                            date: date,
+                            time: timeStr,
+                            notes: notesCtrl.text,
+                            category: selectedCategory,
+                            notifConfig: notifConfig,
+                            repeatWeekdays: repeatEnabled
+                                ? selectedWeekdays.toList() : null,
+                            repeatUntil: repeatEnabled && !neverEnds
+                                ? repeatUntil : null,
+                          );
+                          onAdded();
+                        },
+                        child: Text('GUARDAR',
+                            style: GoogleFonts.pressStart2p(
+                                fontSize: 9, color: Colors.white)),
+                      ),
+                    ]),
+              ),
+            ]),
+          ),
+        );
+      }),
+    );
+  }
+  Widget _buildCategorySelector({
+    required dynamic c,
+    required String? selectedCategory,
+    required Color accentColor,
+    required void Function(String) onSelected,
+    required void Function() onCleared,
+  }) {
+    const categories = [
+      {'label': 'Personal',           'emoji': '🧘'},
+      {'label': 'Salud / Fitness',    'emoji': '💪'},
+      {'label': 'Trabajo / Laboral',  'emoji': '💼'},
+      {'label': 'Estudio / Educación','emoji': '📚'},
+      {'label': 'Finanzas / Ahorro',  'emoji': '💰'},
+      {'label': 'Social / Amigos',    'emoji': '👥'},
+      {'label': 'Familia',            'emoji': '🏠'},
+      {'label': 'Viajes',             'emoji': '✈️'},
+      {'label': 'Reuniones',          'emoji': '📅'},
+      {'label': 'Proyectos / Hobbies','emoji': '🎨'},
+      {'label': 'Deporte',            'emoji': '⚽'},
+      {'label': 'Música',             'emoji': '🎵'},
+      {'label': 'Desarrollo personal','emoji': '🌱'},
+      {'label': 'Tecnología',         'emoji': '💻'},
+      {'label': 'Casa / Hogar',       'emoji': '🧹'},
+      {'label': 'Trámites / Gestiones','emoji': '📋'},
+      {'label': 'Espiritual / Fe',    'emoji': '🙏'},
+      {'label': 'Otro',               'emoji': '📌'},
+    ];
+
+    return Autocomplete<String>(
+      optionsBuilder: (tv) {
+        final q = tv.text.toLowerCase();
+        if (q.isEmpty) {
+          return categories.map((cat) => '${cat['emoji']} ${cat['label']}');
+        }
+        return categories
+            .where((cat) => cat['label']!.toLowerCase().contains(q))
+            .map((cat) => '${cat['emoji']} ${cat['label']}');
+      },
+      onSelected: (val) {
+        final idx = val.indexOf(' ');
+        onSelected(idx >= 0 ? val.substring(idx + 1) : val);
+      },
+      fieldViewBuilder: (ctx2, ctrl2, fn, _) => TextField(
+        controller: ctrl2,
+        focusNode: fn,
+        onChanged: (v) { if (v.isEmpty) onCleared(); },
+        style: GoogleFonts.pressStart2p(color: c.textPrimary, fontSize: 9),
+        decoration: InputDecoration(
+          hintText: 'Escribe para buscar...',
+          hintStyle: GoogleFonts.pressStart2p(
+              fontSize: 8, color: c.textDisabled),
+          prefixIcon: selectedCategory != null
+              ? Padding(padding: const EdgeInsets.all(10),
+              child: Text(
+                categories.firstWhere(
+                        (cat) => cat['label'] == selectedCategory,
+                    orElse: () => {'emoji': '📌', 'label': ''})['emoji']!,
+                style: const TextStyle(fontSize: 16),
+              ))
+              : Icon(Icons.folder_outlined, size: 16, color: c.textDisabled),
+          suffixIcon: selectedCategory != null
+              ? Icon(Icons.check_circle, size: 16, color: accentColor)
+              : null,
+          filled: true, fillColor: c.bgSurface,
+          border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: c.divider)),
+          focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: accentColor, width: 1.5)),
+          contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12, vertical: 12),
         ),
-      )),
+      ),
+      optionsViewBuilder: (ctx2, onSel, options) => Align(
+        alignment: Alignment.topLeft,
+        child: Material(
+          elevation: 6,
+          borderRadius: BorderRadius.circular(10),
+          color: c.bgCard,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 180),
+            child: ListView.builder(
+              shrinkWrap: true,
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              itemCount: options.length,
+              itemBuilder: (_, i) {
+                final opt = options.elementAt(i);
+                return InkWell(
+                  onTap: () => onSel(opt),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    child: Text(opt,
+                        style: GoogleFonts.pressStart2p(
+                            fontSize: 9, color: c.textPrimary)),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
     );
   }
 
