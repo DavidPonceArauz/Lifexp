@@ -7,8 +7,8 @@ class AnalyticsService {
   static Future<void> init() async {
     final config = PostHogConfig(_apiKey)
       ..host = _host
-      ..flushAt = 20                              // ← envía cada evento inmediatamente
-      ..flushInterval = const Duration(seconds: 5) // ← flush cada 5 segundos
+      ..flushAt = 1                              // ← envía cada evento inmediatamente
+      ..flushInterval = const Duration(seconds: 20) // ← flush cada 5 segundos
       ..captureApplicationLifecycleEvents = true
       ..debug = false;
     await Posthog().setup(config);

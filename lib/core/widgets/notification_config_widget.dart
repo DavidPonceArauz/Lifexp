@@ -92,7 +92,7 @@ Widget buildTimePicker({
       decoration: BoxDecoration(
           color: AutumnColors.bgCard,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: accentColor.withOpacity(0.5))),
+          border: Border.all(color: accentColor.withValues(alpha:0.5))),
       child: Row(children: [
         Icon(Icons.access_time_rounded, size: 16, color: accentColor),
         const SizedBox(width: 10),
@@ -145,12 +145,12 @@ class _NotificationConfigWidgetState extends State<NotificationConfigWidget> {
     return Container(
       decoration: BoxDecoration(
         color: _cfg.enabled
-            ? AutumnColors.accentOrange.withOpacity(0.06)
+            ? AutumnColors.accentOrange.withValues(alpha:0.06)
             : AutumnColors.bgSurface,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: _cfg.enabled
-              ? AutumnColors.accentOrange.withOpacity(0.5)
+              ? AutumnColors.accentOrange.withValues(alpha:0.5)
               : AutumnColors.divider,
           width: _cfg.enabled ? 1.5 : 1,
         ),
@@ -418,12 +418,12 @@ class _HabitReminderWidgetState extends State<HabitReminderWidget> {
     return Container(
       decoration: BoxDecoration(
         color: _enabled
-            ? AutumnColors.mossGreen.withOpacity(0.07)
+            ? AutumnColors.mossGreen.withValues(alpha:0.07)
             : AutumnColors.bgSurface,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
             color: _enabled
-                ? AutumnColors.mossGreen.withOpacity(0.5)
+                ? AutumnColors.mossGreen.withValues(alpha:0.5)
                 : AutumnColors.divider,
             width: _enabled ? 1.5 : 1),
       ),

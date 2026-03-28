@@ -293,11 +293,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           backgroundColor: c.bgCard,
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: color.withOpacity(0.5), width: 1.5)),
+              side: BorderSide(color: color.withValues(alpha:0.5), width: 1.5)),
           title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                    color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
+                    color: color.withValues(alpha:0.1), borderRadius: BorderRadius.circular(6)),
                 child: Text('⚠️ ${_S(ref.read(languageProvider)).danger}',
                     style: GoogleFonts.pressStart2p(fontSize: 8, color: color))),
             const SizedBox(height: 10),
@@ -315,7 +315,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               textCapitalization: TextCapitalization.characters,
               decoration: InputDecoration(
                 hintText: confirmWord,
-                hintStyle: GoogleFonts.pressStart2p(fontSize: 9, color: c.textDisabled.withOpacity(0.4)),
+                hintStyle: GoogleFonts.pressStart2p(fontSize: 9, color: c.textDisabled.withValues(alpha:0.4)),
                 filled: true, fillColor: c.bgSurface,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: c.divider)),
                 focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: color, width: 2)),
@@ -363,7 +363,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           decoration: BoxDecoration(
               color: c.bgCard,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              border: Border.all(color: AutumnColors.accentOrange.withOpacity(0.3))),
+              border: Border.all(color: AutumnColors.accentOrange.withValues(alpha:0.3))),
           child: Column(children: [
             const SizedBox(height: 12),
             Container(width: 40, height: 4,
@@ -577,7 +577,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     title: Row(children: [
       Container(width: 36, height: 36,
           decoration: BoxDecoration(
-              color: AutumnColors.accentOrange.withOpacity(0.15),
+              color: AutumnColors.accentOrange.withValues(alpha:0.15),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: AutumnColors.accentOrange, width: 2)),
           child: Center(child: Text(
@@ -605,8 +605,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
           color: c.bgCard, borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AutumnColors.accentOrange.withOpacity(0.5), width: 1.5),
-          boxShadow: [BoxShadow(color: AutumnColors.accentOrange.withOpacity(0.08), blurRadius: 12, offset: const Offset(0, 4))]),
+          border: Border.all(color: AutumnColors.accentOrange.withValues(alpha:0.5), width: 1.5),
+          boxShadow: [BoxShadow(color: AutumnColors.accentOrange.withValues(alpha:0.08), blurRadius: 12, offset: const Offset(0, 4))]),
       child: Column(children: [
         Row(children: [
           Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -649,9 +649,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     final emoji = _level >= 11 ? '🌳' : _level >= 7 ? '🌲' : _level >= 3 ? '🌿' : '🌱';
     return Container(width: 44, height: 44,
         decoration: BoxDecoration(
-            color: AutumnColors.mossGreen.withOpacity(0.1),
+            color: AutumnColors.mossGreen.withValues(alpha:0.1),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AutumnColors.mossGreen.withOpacity(0.3))),
+            border: Border.all(color: AutumnColors.mossGreen.withValues(alpha:0.3))),
         child: Center(child: Text(emoji, style: const TextStyle(fontSize: 24))));
   }
 
@@ -701,13 +701,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     return AnimatedContainer(duration: const Duration(milliseconds: 300),
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-            color: b.unlocked ? AutumnColors.accentGold.withOpacity(0.1) : c.bgCard,
+            color: b.unlocked ? AutumnColors.accentGold.withValues(alpha:0.1) : c.bgCard,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-                color: b.unlocked ? AutumnColors.accentGold.withOpacity(0.6) : c.divider,
+                color: b.unlocked ? AutumnColors.accentGold.withValues(alpha:0.6) : c.divider,
                 width: b.unlocked ? 2 : 1),
             boxShadow: b.unlocked
-                ? [BoxShadow(color: AutumnColors.accentGold.withOpacity(0.15), blurRadius: 8, offset: const Offset(0, 2))]
+                ? [BoxShadow(color: AutumnColors.accentGold.withValues(alpha:0.15), blurRadius: 8, offset: const Offset(0, 2))]
                 : []),
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
           ColorFiltered(
@@ -733,7 +733,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             const SizedBox(height: 4),
             Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                 decoration: BoxDecoration(
-                    color: AutumnColors.accentGold.withOpacity(0.2),
+                    color: AutumnColors.accentGold.withValues(alpha:0.2),
                     borderRadius: BorderRadius.circular(4)),
                 child: Text('✓ DONE',
                     style: GoogleFonts.pressStart2p(fontSize: 5, color: AutumnColors.accentGold))),
@@ -756,9 +756,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         children: items.map((st) => Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-              color: (st.$4 as Color).withOpacity(0.06),
+              color: (st.$4 as Color).withValues(alpha:0.06),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: (st.$4 as Color).withOpacity(0.2))),
+              border: Border.all(color: (st.$4 as Color).withValues(alpha:0.2))),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Text(st.$1, style: const TextStyle(fontSize: 20)),
             const SizedBox(height: 4),
@@ -783,7 +783,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       Row(children: [
         Container(width: 34, height: 34,
             decoration: BoxDecoration(
-                color: AutumnColors.accentGold.withOpacity(0.12),
+                color: AutumnColors.accentGold.withValues(alpha:0.12),
                 borderRadius: BorderRadius.circular(8)),
             child: Icon(isDark ? Icons.nightlight_round : Icons.wb_sunny_rounded,
                 color: AutumnColors.accentGold, size: 17)),
@@ -799,7 +799,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             width: 110, height: 34,
             decoration: BoxDecoration(
                 color: c.bgSurface, borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AutumnColors.accentGold.withOpacity(0.4))),
+                border: Border.all(color: AutumnColors.accentGold.withValues(alpha:0.4))),
             child: Row(children: [
               Expanded(child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
@@ -834,7 +834,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       Row(children: [
         Container(width: 34, height: 34,
             decoration: BoxDecoration(
-                color: AutumnColors.accentOrange.withOpacity(0.12),
+                color: AutumnColors.accentOrange.withValues(alpha:0.12),
                 borderRadius: BorderRadius.circular(8)),
             child: const Icon(Icons.language_rounded,
                 color: AutumnColors.accentOrange, size: 17)),
@@ -901,7 +901,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         child: Row(children: [
           Container(width: 32, height: 32,
               decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.1),
+                  color: iconColor.withValues(alpha:0.1),
                   borderRadius: BorderRadius.circular(8)),
               child: Icon(icon, color: iconColor, size: 16)),
           const SizedBox(width: 12),
@@ -928,7 +928,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         child: Row(children: [
           Container(width: 32, height: 32,
               decoration: BoxDecoration(
-                  color: AutumnColors.accentOrange.withOpacity(0.1),
+                  color: AutumnColors.accentOrange.withValues(alpha:0.1),
                   borderRadius: BorderRadius.circular(8)),
               child: const Icon(Icons.refresh_rounded, color: AutumnColors.accentOrange, size: 16)),
           const SizedBox(width: 12),
@@ -938,16 +938,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             Text(s.resetXpSub, style: GoogleFonts.pressStart2p(fontSize: 6, color: c.textDisabled)),
           ])),
           Icon(Icons.warning_amber_rounded,
-              color: AutumnColors.accentOrange.withOpacity(0.7), size: 18),
+              color: AutumnColors.accentOrange.withValues(alpha:0.7), size: 18),
         ]),
       )),
-      Divider(height: 1, color: AutumnColors.accentRed.withOpacity(0.2)),
+      Divider(height: 1, color: AutumnColors.accentRed.withValues(alpha:0.2)),
       InkWell(onTap: _deleteAccount, child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 11),
         child: Row(children: [
           Container(width: 32, height: 32,
               decoration: BoxDecoration(
-                  color: AutumnColors.accentRed.withOpacity(0.1),
+                  color: AutumnColors.accentRed.withValues(alpha:0.1),
                   borderRadius: BorderRadius.circular(8)),
               child: const Icon(Icons.delete_forever_rounded, color: AutumnColors.accentRed, size: 16)),
           const SizedBox(width: 12),
@@ -970,9 +970,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-            color: AutumnColors.accentRed.withOpacity(0.08),
+            color: AutumnColors.accentRed.withValues(alpha:0.08),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AutumnColors.accentRed.withOpacity(0.4), width: 1.5)),
+            border: Border.all(color: AutumnColors.accentRed.withValues(alpha:0.4), width: 1.5)),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           const Icon(Icons.logout_rounded, color: AutumnColors.accentRed, size: 16),
           const SizedBox(width: 10),

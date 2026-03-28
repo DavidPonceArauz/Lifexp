@@ -305,11 +305,11 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
             // ── Header ──────────────────────────────────────────────────────
             Container(width: double.infinity, padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                    color: (_pColors[todo.priority] ?? AutumnColors.accentOrange).withOpacity(0.1),
+                    color: (_pColors[todo.priority] ?? AutumnColors.accentOrange).withValues(alpha:0.1),
                     borderRadius: const BorderRadius.only(
                         topLeft: Radius.circular(16), topRight: Radius.circular(16)),
                     border: Border(bottom: BorderSide(
-                        color: (_pColors[todo.priority] ?? AutumnColors.accentOrange).withOpacity(0.3)))),
+                        color: (_pColors[todo.priority] ?? AutumnColors.accentOrange).withValues(alpha:0.3)))),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
                     Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -321,10 +321,10 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
                     const SizedBox(width: 8),
                     Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                            color: (statusColors[todo.status] ?? AutumnColors.accentOrange).withOpacity(0.15),
+                            color: (statusColors[todo.status] ?? AutumnColors.accentOrange).withValues(alpha:0.15),
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(
-                                color: (statusColors[todo.status] ?? AutumnColors.accentOrange).withOpacity(0.5))),
+                                color: (statusColors[todo.status] ?? AutumnColors.accentOrange).withValues(alpha:0.5))),
                         child: Text(statusLabels[todo.status] ?? todo.status,
                             style: GoogleFonts.pressStart2p(fontSize: 7,
                                 color: statusColors[todo.status] ?? AutumnColors.accentOrange))),
@@ -403,9 +403,9 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
                     if ((di['text'] as String).isNotEmpty && todo.status != 'done')
                       Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
-                              color: (di['color'] as Color).withOpacity(0.12),
+                              color: (di['color'] as Color).withValues(alpha:0.12),
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: (di['color'] as Color).withOpacity(0.4))),
+                              border: Border.all(color: (di['color'] as Color).withValues(alpha:0.4))),
                           child: Text(di['text'] as String,
                               style: GoogleFonts.pressStart2p(fontSize: 8, color: di['color'] as Color))),
                   ]),
@@ -469,15 +469,15 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
         final hl = candidateData.isNotEmpty;
         return AnimatedContainer(duration: const Duration(milliseconds: 150),
           decoration: BoxDecoration(
-              color: hl ? color.withOpacity(0.12) : c.bgCard.withOpacity(0.5),
+              color: hl ? color.withValues(alpha:0.12) : c.bgCard.withValues(alpha:0.5),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                  color: hl ? color : color.withOpacity(0.35),
+                  color: hl ? color : color.withValues(alpha:0.35),
                   width: hl ? 2 : 1.5)),
           child: Column(children: [
             Container(width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 6),
-                decoration: BoxDecoration(color: color.withOpacity(0.12),
+                decoration: BoxDecoration(color: color.withValues(alpha:0.12),
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(11))),
                 child: Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min,
                     children: [
@@ -486,7 +486,7 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
                           textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis)),
                       const SizedBox(width: 4),
                       Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                          decoration: BoxDecoration(color: color.withOpacity(0.2), borderRadius: BorderRadius.circular(10)),
+                          decoration: BoxDecoration(color: color.withValues(alpha:0.2), borderRadius: BorderRadius.circular(10)),
                           child: Text('${items.length}',
                               style: GoogleFonts.pressStart2p(fontSize: 6, color: color))),
                     ])),
@@ -494,7 +494,7 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
                 ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
               SizedBox(width: 40, height: 40, child: CustomPaint(painter: _EmptyBoxPainter(color: color))),
               const SizedBox(height: 8),
-              Text('vacio', style: GoogleFonts.pressStart2p(fontSize: 7, color: color.withOpacity(0.35))),
+              Text('vacio', style: GoogleFonts.pressStart2p(fontSize: 7, color: color.withValues(alpha:0.35))),
             ]))
                 : ListView.separated(
                 padding: const EdgeInsets.all(6),
@@ -516,9 +516,9 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
       key: ValueKey('todo_${todo.id}_${todo.status}'),
       background: Container(alignment: Alignment.centerLeft,
           padding: const EdgeInsets.only(left: 14),
-          decoration: BoxDecoration(color: AutumnColors.accentRed.withOpacity(0.15),
+          decoration: BoxDecoration(color: AutumnColors.accentRed.withValues(alpha:0.15),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AutumnColors.accentRed.withOpacity(0.4))),
+              border: Border.all(color: AutumnColors.accentRed.withValues(alpha:0.4))),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             const Icon(Icons.delete_outline, color: AutumnColors.accentRed, size: 20),
             const SizedBox(height: 2),
@@ -526,9 +526,9 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
           ])),
       secondaryBackground: Container(alignment: Alignment.centerRight,
           padding: const EdgeInsets.only(right: 14),
-          decoration: BoxDecoration(color: AutumnColors.accentOrange.withOpacity(0.15),
+          decoration: BoxDecoration(color: AutumnColors.accentOrange.withValues(alpha:0.15),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AutumnColors.accentOrange.withOpacity(0.4))),
+              border: Border.all(color: AutumnColors.accentOrange.withValues(alpha:0.4))),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             const Icon(Icons.edit_rounded, color: AutumnColors.accentOrange, size: 20),
             const SizedBox(height: 2),
@@ -572,7 +572,7 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
                     decoration: BoxDecoration(color: c.bgCard,
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: accentColor, width: 2),
-                        boxShadow: [BoxShadow(color: accentColor.withOpacity(0.3), blurRadius: 8)]),
+                        boxShadow: [BoxShadow(color: accentColor.withValues(alpha:0.3), blurRadius: 8)]),
                     child: Text(todo.title.toUpperCase(),
                         style: GoogleFonts.pressStart2p(fontSize: 8, color: c.textPrimary),
                         maxLines: 2, overflow: TextOverflow.ellipsis)))),
@@ -590,7 +590,7 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(color: c.bgCard, borderRadius: BorderRadius.circular(10),
           border: Border.all(color: c.divider),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 4, offset: const Offset(0, 2))]),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.06), blurRadius: 4, offset: const Offset(0, 2))]),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Container(width: 3, height: 36, margin: const EdgeInsets.only(right: 8),
@@ -602,14 +602,14 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
             const SizedBox(height: 3),
             Row(children: [
               Flexible(child: Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                  decoration: BoxDecoration(color: pColor.withOpacity(0.15), borderRadius: BorderRadius.circular(4)),
+                  decoration: BoxDecoration(color: pColor.withValues(alpha:0.15), borderRadius: BorderRadius.circular(4)),
                   child: Text(_pLabels[todo.priority] ?? '',
                       style: GoogleFonts.pressStart2p(fontSize: 6, color: pColor),
                       maxLines: 1, overflow: TextOverflow.ellipsis))),
               if ((todo.category ?? '').isNotEmpty) ...[
                 const SizedBox(width: 4),
                 Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                    decoration: BoxDecoration(color: AutumnColors.accentGold.withOpacity(0.12), borderRadius: BorderRadius.circular(4)),
+                    decoration: BoxDecoration(color: AutumnColors.accentGold.withValues(alpha:0.12), borderRadius: BorderRadius.circular(4)),
                     child: Tooltip(message: todo.category ?? '',
                         child: Text(
                             _categories.firstWhere((cat) => cat['label'] == todo.category,
@@ -646,13 +646,13 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
     final af = (state.filterPriority != 'TODAS' ? 1 : 0) +
         (state.filterCategory != null ? 1 : 0) +
         (state.filterSort != 'FECHA' ? 1 : 0);
-    final cats = state.todos.map((t) => t.category)
+    final cats = state.allTodos.map((t) => t.category)
         .where((cat) => cat != null && cat.isNotEmpty)
         .cast<String>().toSet().toList()..sort();
 
     return Container(
       decoration: BoxDecoration(color: c.bgCard, borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: af > 0 ? AutumnColors.accentOrange.withOpacity(0.5) : c.divider)),
+          border: Border.all(color: af > 0 ? AutumnColors.accentOrange.withValues(alpha:0.5) : c.divider)),
       child: Column(children: [
         GestureDetector(
             onTap: () => setState(() => _filtersOpen = !_filtersOpen),
@@ -846,7 +846,7 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
         bottom: PreferredSize(preferredSize: const Size.fromHeight(2),
             child: Container(height: 2, color: AutumnColors.accentOrange)),
       ),
-      body: state.isLoading && state.todos.isEmpty
+      body: state.isLoading && state.allTodos.isEmpty
           ? const Center(child: CircularProgressIndicator(color: AutumnColors.accentOrange))
           : Column(children: [
         Padding(padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
@@ -862,7 +862,7 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
               Icon(Icons.open_with, size: 9, color: c.textDisabled), const SizedBox(width: 3),
               Text('Mover', style: GoogleFonts.pressStart2p(fontSize: 6, color: c.textDisabled)),
             ])),
-        Expanded(child: state.todos.isEmpty
+        Expanded(child: state.allTodos.isEmpty
             ? PixelEmptyState(type: EmptyStateType.todos, onAction: () => _openTodoDialog())
             : Padding(padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
             child: Row(children: [
@@ -883,8 +883,8 @@ class _EmptyBoxPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final s  = size.width / 8;
-    final p  = Paint()..color = color.withOpacity(0.35);
-    final pl = Paint()..color = color.withOpacity(0.15);
+    final p  = Paint()..color = color.withValues(alpha:0.35);
+    final pl = Paint()..color = color.withValues(alpha:0.15);
     for (int i = 0; i < 8; i++) {
       canvas.drawRect(Rect.fromLTWH(i * s, 0, s, s), p);
       canvas.drawRect(Rect.fromLTWH(i * s, 7 * s, s, s), p);
@@ -896,7 +896,7 @@ class _EmptyBoxPainter extends CustomPainter {
         canvas.drawRect(Rect.fromLTWH(col * s, r * s, s, s), pl);
       }
     }
-    final pp = Paint()..color = color.withOpacity(0.5);
+    final pp = Paint()..color = color.withValues(alpha:0.5);
     canvas.drawRect(Rect.fromLTWH(3 * s, 2 * s, s, 4 * s), pp);
     canvas.drawRect(Rect.fromLTWH(2 * s, 3 * s, 4 * s, s), pp);
   }

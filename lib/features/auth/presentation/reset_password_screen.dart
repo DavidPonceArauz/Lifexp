@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/supabase/supabase_client.dart';
 import '../../../core/theme/autumn_theme.dart';
 import '../../../core/widgets/autumn_widgets.dart';
+import '../../../main.dart' show kIsRecoveryFlow;
 
 class ResetPasswordScreen extends StatefulWidget {
   const ResetPasswordScreen({super.key});
@@ -65,6 +66,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
       await SupabaseConfig.client.auth.updateUser(
         UserAttributes(password: password),
       );
+      kIsRecoveryFlow = false;
       setState(() => _done = true);
       _showSuccess('✅ CONTRASEÑA ACTUALIZADA');
       await Future.delayed(const Duration(seconds: 2));
@@ -141,9 +143,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AutumnColors.mossGreen.withOpacity(0.15),
+                        color: AutumnColors.mossGreen.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AutumnColors.mossGreen.withOpacity(0.4)),
+                        border: Border.all(color: AutumnColors.mossGreen.withValues(alpha: 0.4)),
                       ),
                       child: Text('✅ CONTRASEÑA ACTUALIZADA\nRedirigiendo al login...',
                           textAlign: TextAlign.center,
@@ -164,7 +166,10 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
                   const SizedBox(height: MobileSizes.spacingMedium),
                   AutumnButton(
                     text: 'VOLVER AL LOGIN',
-                    onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
+                    onPressed: () {
+                      kIsRecoveryFlow = false;
+                      Navigator.pushReplacementNamed(context, '/login');
+                    },
                     bgColor: AutumnColors.bgSurface,
                     textColor: AutumnColors.textPrimary,
                     height: MobileSizes.buttonHeightSmall,
@@ -200,7 +205,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
         hintText: hint,
         hintStyle: GoogleFonts.pressStart2p(fontSize: 9, color: AutumnColors.textDisabled),
         filled: true, fillColor: AutumnColors.bgSurface,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AutumnColors.mossGreen.withOpacity(0.4))),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AutumnColors.mossGreen.withValues(alpha: 0.4))),
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AutumnColors.accentOrange, width: 1.5)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         suffixIcon: IconButton(

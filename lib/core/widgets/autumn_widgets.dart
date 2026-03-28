@@ -55,14 +55,14 @@ class _AutumnButtonState extends State<AutumnButton> {
           color: bg,
           borderRadius: BorderRadius.circular(MobileSizes.borderRadius),
           border: Border.all(
-            color: _darken(widget.bgColor, 0.78).withOpacity(0.45),
+            color: _darken(widget.bgColor, 0.78).withValues(alpha: 0.45),
             width: 1.2,
           ),
           boxShadow: _pressed
               ? []
               : [
             BoxShadow(
-              color: c.shadow.withOpacity(0.5),
+              color: c.shadow.withValues(alpha: 0.5),
               blurRadius: 4,
               offset: Offset(0, _pressed ? 1 : 2),
             ),
@@ -150,7 +150,7 @@ class _AutumnInputState extends State<AutumnInput> {
         boxShadow: [
           BoxShadow(
             color: _focused
-                ? AutumnColors.accentOrange.withOpacity(0.12)
+                ? AutumnColors.accentOrange.withValues(alpha: 0.12)
                 : Colors.transparent,
             blurRadius: 6,
           ),
@@ -216,7 +216,7 @@ class AutumnCard extends StatelessWidget {
         border: Border.all(color: _border(context), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: c.shadow.withOpacity(0.5),
+            color: c.shadow.withValues(alpha: 0.5),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -252,7 +252,7 @@ class AccentCard extends StatelessWidget {
         border: Border.all(color: c.divider, width: 1),
         boxShadow: [
           BoxShadow(
-            color: c.shadow.withOpacity(0.45),
+            color: c.shadow.withValues(alpha: 0.45),
             blurRadius: 6,
             offset: const Offset(2, -2),
           ),
@@ -508,10 +508,10 @@ class _TreeVisual extends StatelessWidget {
   Widget _canopy(double size, Color color, {double opacity = 1.0}) => Container(
     width: size, height: size,
     decoration: BoxDecoration(
-      color: color.withOpacity(opacity),
+      color: color.withValues(alpha: opacity),
       shape: BoxShape.circle,
       boxShadow: [
-        BoxShadow(color: color.withOpacity(0.3), blurRadius: 8, spreadRadius: 2)
+        BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 8, spreadRadius: 2)
       ],
     ),
   );
@@ -628,7 +628,7 @@ class LeafBackgroundPainter extends CustomPainter {
     for (int i = 0; i < leaves.length; i++) {
       final l = leaves[i];
       final paint = Paint()
-        ..color = (l.$3 as Color).withOpacity(0.07)
+        ..color = (l.$3 as Color).withValues(alpha: 0.07)
         ..style = PaintingStyle.fill;
       final ox = (l.$1 as double) * size.width + 8 * (animValue - 0.5);
       final oy = (l.$2 as double) * size.height + 15 * animValue;
@@ -748,7 +748,7 @@ class AutumnTitle extends StatelessWidget {
         fontWeight: FontWeight.bold,
         shadows: [
           Shadow(
-            color: AutumnColors.accentOrange.withOpacity(0.3),
+            color: AutumnColors.accentOrange.withValues(alpha: 0.3),
             blurRadius: 6,
           ),
         ],

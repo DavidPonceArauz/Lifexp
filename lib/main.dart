@@ -19,6 +19,7 @@ import 'features/auth/presentation/register_screen.dart';
 import 'features/auth/presentation/reset_password_screen.dart';
 import 'features/auth/presentation/onboarding_screen.dart';
 import 'main_shell.dart';
+import 'features/auth/presentation/auth_notifier.dart';
 
 bool kIsRecoveryFlow = false;
 
@@ -161,7 +162,7 @@ class _LifeXPAppState extends ConsumerState<LifeXPApp> {
 
         switch (settings.name) {
           case '/':
-            return MaterialPageRoute(builder: (_) => const LoginScreen());
+            return MaterialPageRoute(builder: (_) => const AuthGate());
           case '/login':
             return MaterialPageRoute(builder: (_) => const LoginScreen());
           case '/register':

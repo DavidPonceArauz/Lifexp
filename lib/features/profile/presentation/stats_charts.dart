@@ -404,7 +404,7 @@ class _StatsChartsSectionState extends ConsumerState<StatsChartsSection> {
               belowBarData: BarAreaData(
                 show: true,
                 gradient: LinearGradient(
-                  colors: [AutumnColors.accentGold.withOpacity(0.3), AutumnColors.accentGold.withOpacity(0.0)],
+                  colors: [AutumnColors.accentGold.withValues(alpha:0.3), AutumnColors.accentGold.withValues(alpha:0.0)],
                   begin: Alignment.topCenter, end: Alignment.bottomCenter,
                 ),
               ),
@@ -492,7 +492,7 @@ class _StatsChartsSectionState extends ConsumerState<StatsChartsSection> {
               belowBarData: BarAreaData(
                 show: true,
                 gradient: LinearGradient(
-                  colors: [AutumnColors.freeze.withOpacity(0.25), AutumnColors.freeze.withOpacity(0.0)],
+                  colors: [AutumnColors.freeze.withValues(alpha:0.25), AutumnColors.freeze.withValues(alpha:0.0)],
                   begin: Alignment.topCenter, end: Alignment.bottomCenter,
                 ),
               ),
@@ -604,7 +604,7 @@ class _StatsChartsSectionState extends ConsumerState<StatsChartsSection> {
           tickCount: 4,
           ticksTextStyle: GoogleFonts.pressStart2p(fontSize: 0, color: Colors.transparent),
           tickBorderData: BorderSide(color: c.divider, width: 1),
-          gridBorderData: BorderSide(color: c.divider.withOpacity(0.5), width: 1),
+          gridBorderData: BorderSide(color: c.divider.withValues(alpha:0.5), width: 1),
           radarBorderData: BorderSide(color: c.divider, width: 1.5),
           titleTextStyle: GoogleFonts.pressStart2p(fontSize: 7, color: c.textSecondary),
           titlePositionPercentageOffset: 0.15,
@@ -618,7 +618,7 @@ class _StatsChartsSectionState extends ConsumerState<StatsChartsSection> {
           },
           dataSets: [
             RadarDataSet(
-              fillColor: AutumnColors.accentOrange.withOpacity(0.2),
+              fillColor: AutumnColors.accentOrange.withValues(alpha:0.2),
               borderColor: AutumnColors.accentOrange,
               borderWidth: 2,
               entryRadius: 4,
@@ -648,7 +648,7 @@ class _StatsChartsSectionState extends ConsumerState<StatsChartsSection> {
         ),
         child: Center(child: SizedBox(
           width: 24, height: 24,
-          child: CircularProgressIndicator(strokeWidth: 2, color: AutumnColors.accentOrange.withOpacity(0.5)),
+          child: CircularProgressIndicator(strokeWidth: 2, color: AutumnColors.accentOrange.withValues(alpha:0.5)),
         )),
       ),
     )));

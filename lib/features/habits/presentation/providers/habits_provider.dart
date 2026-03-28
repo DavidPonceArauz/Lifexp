@@ -10,6 +10,7 @@ import '../../../../core/services/widget_service.dart';
 import '../../../../core/services/analytics_service.dart';
 import '../../../../core/supabase/supabase_client.dart';
 import 'package:flutter/foundation.dart';
+import '../../../goals/presentation/providers/goals_provider.dart';
 
 // ── Providers ────────────────────────────────────────────────────────────────
 
@@ -23,7 +24,7 @@ final habitsProvider =
 StateNotifierProvider<HabitsNotifier, HabitsState>((ref) {
   final repo   = ref.watch(habitsRepositoryProvider);
   final userId = ref.watch(userIdProvider);
-  return HabitsNotifier(repo, userId);
+  return HabitsNotifier(repo, userId, ref);
 });
 
 // ── StateNotifier ─────────────────────────────────────────────────────────────
@@ -31,9 +32,10 @@ StateNotifierProvider<HabitsNotifier, HabitsState>((ref) {
 class HabitsNotifier extends StateNotifier<HabitsState> {
   final HabitsRepository _repo;
   final String _userId;
+  final Ref _ref;
   final _db = SupabaseConfig.client;
 
-  HabitsNotifier(this._repo, this._userId) : super(HabitsState()) {
+  HabitsNotifier(this._repo, this._userId, this._ref) : super(HabitsState()) {
     if (_userId.isNotEmpty) loadAll();
   }
 
@@ -41,6 +43,7 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
     state = state.copyWith(isLoading: true, clearError: true);
     await Future.wait([
       _repo.checkMissedHabits(_userId),
+      _repo.checkOverdueHabitObjectives(_userId),
       _loadScreenData(state.selectedDate),
     ]);
     state = state.copyWith(isLoading: false);
@@ -124,38 +127,37 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
     state = state.copyWith(completedCache: newCache, streakData: newStreakData);
     _syncWidget();
 
-    // ── Analytics: habit completado ───────────────────────────────────────
-    if (newCompleted) {
-      final habitData = state.habits.firstWhere(
-            (h) => h.id == habitId,
-        orElse: () => state.habits.first,
-      );
-      final streakData = newStreakData.firstWhere(
-            (s) => s.habitId == habitId,
-        orElse: () => newStreakData.first,
-      );
-      final currentStreak = streakData.streak as int;
-
-      AnalyticsService.habitCompleted(
-        habitId:       habitId,
-        habitName:     habitData.name,
-        category:      habitData.category ?? 'General',
-        currentStreak: currentStreak,
-      );
-
-      const milestones = [3, 7, 14, 30, 60, 100];
-      if (milestones.contains(currentStreak)) {
-        AnalyticsService.streakMilestone(
-          habitId:    habitId,
-          habitName:  habitData.name,
-          streakDays: currentStreak,
-        );
-      }
-    }
-
     try {
       final dateStr = state.selectedDate.toIso8601String().substring(0, 10);
       await _repo.toggleCompleted(habitId, _userId, dateStr);
+
+      // ── Analytics: solo si el servidor confirmó ───────────────────────
+      if (newCompleted) {
+        final habits = state.habits;
+        final streaks = newStreakData;
+        if (habits.isNotEmpty) {
+          final habitIndex = habits.indexWhere((h) => h.id == habitId);
+          final streakIndex = streaks.indexWhere((s) => s.habitId == habitId);
+          if (habitIndex != -1 && streakIndex != -1) {
+            final habitData    = habits[habitIndex];
+            final currentStreak = streaks[streakIndex].streak;
+            AnalyticsService.habitCompleted(
+              habitId:       habitId,
+              habitName:     habitData.name,
+              category:      habitData.category ?? 'General',
+              currentStreak: currentStreak,
+            );
+            const milestones = [3, 7, 14, 30, 60, 100];
+            if (milestones.contains(currentStreak)) {
+              AnalyticsService.streakMilestone(
+                habitId:    habitId,
+                habitName:  habitData.name,
+                streakDays: currentStreak,
+              );
+            }
+          }
+        }
+      }
 
       // ── Evaluar objetivos vinculados a este hábito ────────────────────
       await _checkLinkedObjectives(habitId);
@@ -194,20 +196,36 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
           .eq('habit_id', habitId)
           .eq('type', 'habit')
           .eq('status', 'pending')
-          .not('deadline', 'is', null)
-          .neq('deadline', '');
+          .not('deadline', 'is', null);
 
       for (final obj in objectives as List) {
-        final objId      = obj['id'] as int;
-        final deadline   = obj['deadline'] as String;
-        final createdAt  = obj['created_at'] as String;
+        final objId        = obj['id'] as int;
+        final deadlineRaw  = obj['deadline'];
+        final createdAtRaw = obj['created_at'] as String;
+
+        // Saltar si deadline es null o vacío
+        if (deadlineRaw == null || deadlineRaw.toString().isEmpty) continue;
+        final deadline = deadlineRaw.toString();
 
         // Solo evaluar si el deadline ya llegó o pasó
         if (deadline.compareTo(today) > 0) continue;
 
-        // Calcular período: desde created_at hasta deadline (inclusive)
-        final start = DateTime.parse(createdAt.substring(0, 10));
-        final end   = DateTime.parse(deadline);
+        // ── Fix timezone: convertir created_at a fecha local ──────────────
+        // El created_at viene como UTC desde Supabase. Convertimos a local
+        // para calcular el período correcto según el timezone del usuario.
+        final createdAtUtc = DateTime.parse(createdAtRaw);
+        final createdAtLocal = createdAtUtc.toLocal();
+        final startDate = DateTime(
+          createdAtLocal.year,
+          createdAtLocal.month,
+          createdAtLocal.day,
+        ).toIso8601String().substring(0, 10);
+
+        final endDate = deadline; // ya viene como date sin timezone
+
+        // Calcular período: desde fecha local de creación hasta deadline
+        final start     = DateTime.parse(startDate);
+        final end       = DateTime.parse(endDate);
         final totalDays = end.difference(start).inDays + 1;
         if (totalDays <= 0) continue;
 
@@ -217,11 +235,16 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
             .select('date')
             .eq('habit_id', habitId)
             .eq('completed', true)
-            .gte('date', createdAt.substring(0, 10))
-            .lte('date', deadline);
+            .gte('date', startDate)
+            .lte('date', endDate);
 
         final completedDays = (logs as List).length;
         final ratio = completedDays / totalDays;
+
+        debugPrint('_checkLinkedObjectives: obj=$objId habit=$habitId '
+            'start=$startDate end=$endDate '
+            'completed=$completedDays total=$totalDays '
+            'ratio=${(ratio * 100).round()}%');
 
         if (ratio >= 0.80) {
           // ✅ Objetivo cumplido
@@ -230,7 +253,6 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
               .update({'status': 'completed'})
               .eq('id', objId);
 
-          // XP positivo
           await _repo.applyXp(
             _userId,
             50,
@@ -246,7 +268,6 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
               .update({'status': 'failed'})
               .eq('id', objId);
 
-          // Penalización XP
           await _repo.applyXp(
             _userId,
             -80,
@@ -256,9 +277,11 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
             today,
           );
         }
+
+        // Refrescar goals para que la barra de progreso se actualice
+        _ref.invalidate(goalsProvider);
       }
     } catch (e) {
-      // Silencioso — no interrumpir el flujo principal
       debugPrint('_checkLinkedObjectives error: $e');
     }
   }
@@ -318,14 +341,13 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
   Future<bool> applyManualFreeze(int habitId) async {
     final ok = await _repo.applyManualFreeze(habitId, _userId);
     if (ok) {
-      final habitData = state.habits.firstWhere(
-            (h) => h.id == habitId,
-        orElse: () => state.habits.first,
-      );
-      AnalyticsService.freezeUsed(
-        habitId:   habitId,
-        habitName: habitData.name,
-      );
+      final habitIndex = state.habits.indexWhere((h) => h.id == habitId);
+      if (habitIndex != -1) {
+        AnalyticsService.freezeUsed(
+          habitId:   habitId,
+          habitName: state.habits[habitIndex].name,
+        );
+      }
       state = state.copyWith(freezes: state.freezes - 1);
       await _loadScreenData(state.selectedDate);
     }

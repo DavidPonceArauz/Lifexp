@@ -113,7 +113,7 @@ class _AutumnBottomNav extends StatelessWidget {
       decoration: BoxDecoration(
         color: c.bgCard,
         border: const Border(top: BorderSide(color: AutumnColors.accentOrange, width: 2)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.10), blurRadius: 10, offset: const Offset(0, -3))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.10), blurRadius: 10, offset: const Offset(0, -3))],
       ),
       child: SafeArea(
         top: false,

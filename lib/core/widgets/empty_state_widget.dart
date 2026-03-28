@@ -120,7 +120,7 @@ class _PixelEmptyStateState extends State<PixelEmptyState>
                       width: 80,
                       height: 12,
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.15),
+                        color: Colors.black.withValues(alpha:0.15),
                         borderRadius: BorderRadius.circular(40),
                       ),
                     ),
@@ -182,7 +182,7 @@ class _PixelEmptyStateState extends State<PixelEmptyState>
                   padding: const EdgeInsets.symmetric(
                       horizontal: 20, vertical: 12),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.12),
+                    color: color.withValues(alpha:0.12),
                     border: Border.all(color: color, width: 2),
                     borderRadius: BorderRadius.circular(4),
                   ),
@@ -216,7 +216,7 @@ class _PixelEmptyStateState extends State<PixelEmptyState>
             hint,
             style: GoogleFonts.pressStart2p(
               fontSize: 6,
-              color: AutumnColors.textDisabled.withOpacity(0.5),
+              color: AutumnColors.textDisabled.withValues(alpha:0.5),
             ),
             textAlign: TextAlign.center,
           ),
@@ -274,7 +274,7 @@ class _PixelSpritePainter extends CustomPainter {
     final orange = Paint()..color = AutumnColors.accentOrange;
     final gold   = Paint()..color = AutumnColors.accentGold;
     final red    = Paint()..color = AutumnColors.accentRed;
-    final white  = Paint()..color = Colors.white.withOpacity(0.9);
+    final white  = Paint()..color = Colors.white.withValues(alpha:0.9);
 
     final flame = [
       [0, 0, 0, 1, 0, 0, 0, 0],

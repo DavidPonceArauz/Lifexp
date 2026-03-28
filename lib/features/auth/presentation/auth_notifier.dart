@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 import '../../../core/supabase/supabase_client.dart';
+import '../../../core/theme/autumn_theme.dart';
 
 // ── Estado de auth ────────────────────────────────────────────
 
@@ -66,34 +67,45 @@ final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
 
 // ── AuthGate ──────────────────────────────────────────────────
 
-class AuthGate extends ConsumerWidget {
+class AuthGate extends ConsumerStatefulWidget {
   const AuthGate({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends ConsumerState<AuthGate> {
+  bool _navigating = false;
+
+  void _navigate(String route, {Object? arguments}) {
+    if (_navigating) return;
+    _navigating = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, route, arguments: arguments);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final auth = ref.watch(authProvider);
 
     if (auth.isLoading) {
-      return const Scaffold(
-        backgroundColor: Color(0xFF1A1A1A),
-        body: Center(child: CircularProgressIndicator(color: Color(0xFFE8820C))),
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: const Center(
+          child: CircularProgressIndicator(color: AutumnColors.accentOrange),
+        ),
       );
     }
 
     if (auth.isAuthenticated && auth.userId != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (context.mounted) {
-          Navigator.pushReplacementNamed(context, '/home', arguments: auth.userId);
-        }
-      });
+      _navigate('/home', arguments: auth.userId);
       return const SizedBox.shrink();
     }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (context.mounted) {
-        Navigator.pushReplacementNamed(context, '/login');
-      }
-    });
+    _navigate('/login');
     return const SizedBox.shrink();
   }
 }

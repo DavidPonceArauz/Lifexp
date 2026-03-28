@@ -5,7 +5,8 @@
 import 'todo.dart';
 
 class TodosState {
-  final List<Todo> todos;
+  final List<Todo> allTodos;       // todos sin filtrar — fuente de verdad
+  final List<Todo> filteredTodos;  // los que se muestran en pantalla
   final bool isLoading;
   final String? error;
   final String filterPriority;
@@ -13,7 +14,8 @@ class TodosState {
   final String? filterCategory;
 
   TodosState({
-    this.todos = const [],
+    this.allTodos = const [],
+    this.filteredTodos = const [],
     this.isLoading = false,
     this.error,
     this.filterPriority = 'TODAS',
@@ -21,12 +23,14 @@ class TodosState {
     this.filterCategory,
   });
 
-  List<Todo> get pending    => todos.where((t) => t.status == 'pending').toList();
-  List<Todo> get inProgress => todos.where((t) => t.status == 'in_progress').toList();
-  List<Todo> get done       => todos.where((t) => t.status == 'done').toList();
+  // Las columnas Kanban filtran sobre filteredTodos
+  List<Todo> get pending    => filteredTodos.where((t) => t.status == 'pending').toList();
+  List<Todo> get inProgress => filteredTodos.where((t) => t.status == 'in_progress').toList();
+  List<Todo> get done       => filteredTodos.where((t) => t.status == 'done').toList();
 
   TodosState copyWith({
-    List<Todo>? todos,
+    List<Todo>? allTodos,
+    List<Todo>? filteredTodos,
     bool? isLoading,
     String? error,
     String? filterPriority,
@@ -36,7 +40,8 @@ class TodosState {
     bool clearCategory = false,
   }) =>
       TodosState(
-        todos:          todos          ?? this.todos,
+        allTodos:       allTodos       ?? this.allTodos,
+        filteredTodos:  filteredTodos  ?? this.filteredTodos,
         isLoading:      isLoading      ?? this.isLoading,
         error:          clearError     ? null : (error ?? this.error),
         filterPriority: filterPriority ?? this.filterPriority,

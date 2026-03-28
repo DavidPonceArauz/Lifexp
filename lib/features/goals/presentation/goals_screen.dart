@@ -196,7 +196,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
                         Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                                color: AutumnColors.accentOrange.withOpacity(0.15),
+                                color: AutumnColors.accentOrange.withValues(alpha:0.15),
                                 borderRadius: BorderRadius.circular(6)),
                             child: Text(_daysLabel(selectedDate!),
                                 style: GoogleFonts.pressStart2p(fontSize: 7, color: AutumnColors.accentOrange))),
@@ -236,7 +236,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
                       activeTrackColor: AutumnColors.accentOrange,
                       inactiveTrackColor: c.divider,
                       thumbColor: AutumnColors.accentOrange,
-                      overlayColor: AutumnColors.accentOrange.withOpacity(0.15),
+                      overlayColor: AutumnColors.accentOrange.withValues(alpha:0.15),
                       trackHeight: 4),
                   child: Slider(value: difficulty, min: 1, max: 10, divisions: 9,
                       onChanged: (v) => setDlg(() => difficulty = v)),
@@ -368,7 +368,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
       decoration: BoxDecoration(
           color: c.bgCard, borderRadius: BorderRadius.circular(12),
           border: Border.all(color: isComplete ? AutumnColors.mossGreen : c.divider, width: isComplete ? 1.5 : 1),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 2))]),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha:0.06), blurRadius: 8, offset: const Offset(0, 2))]),
       child: IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Container(width: 5, decoration: BoxDecoration(
             color: isComplete ? AutumnColors.mossGreen : pColors[goal.priority] ?? AutumnColors.accentOrange,
@@ -405,9 +405,9 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
               const Spacer(),
               if (deadlineBadge.isNotEmpty)
                 Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: deadlineColor.withOpacity(0.12),
+                    decoration: BoxDecoration(color: deadlineColor.withValues(alpha:0.12),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: deadlineColor.withOpacity(0.4))),
+                        border: Border.all(color: deadlineColor.withValues(alpha:0.4))),
                     child: Text(deadlineBadge, style: GoogleFonts.pressStart2p(fontSize: 7, color: deadlineColor))),
             ]),
             const SizedBox(height: 10),
@@ -425,7 +425,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
                         gradient: LinearGradient(colors: [AutumnColors.accentOrange,
                           pct >= 1.0 ? AutumnColors.mossGreen : AutumnColors.accentGold]),
                         borderRadius: BorderRadius.circular(7),
-                        boxShadow: pct > 0 ? [BoxShadow(color: AutumnColors.accentOrange.withOpacity(0.35), blurRadius: 4)] : []))),
+                        boxShadow: pct > 0 ? [BoxShadow(color: AutumnColors.accentOrange.withValues(alpha:0.35), blurRadius: 4)] : []))),
                 if (pct > 0.18) Positioned.fill(child: Center(child: Text('$pctInt%',
                     style: GoogleFonts.pressStart2p(fontSize: 7, color: Colors.white, fontWeight: FontWeight.bold)))),
               ]),
@@ -499,7 +499,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
 
     return Container(
       decoration: BoxDecoration(color: c.bgCard, borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: af > 0 ? AutumnColors.accentOrange.withOpacity(0.5) : c.divider)),
+          border: Border.all(color: af > 0 ? AutumnColors.accentOrange.withValues(alpha:0.5) : c.divider)),
       child: Column(children: [
         GestureDetector(
           onTap: () => setState(() => _filtersOpen = !_filtersOpen),
@@ -654,9 +654,9 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
           if (_message.isNotEmpty)
             Container(margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(color: _messageColor.withOpacity(0.12),
+                decoration: BoxDecoration(color: _messageColor.withValues(alpha:0.12),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: _messageColor.withOpacity(0.3))),
+                    border: Border.all(color: _messageColor.withValues(alpha:0.3))),
                 child: Text(_message, style: GoogleFonts.pressStart2p(fontSize: 9, color: _messageColor),
                     textAlign: TextAlign.center)),
           if (state.allGoals.isNotEmpty && state.filteredGoals.length != state.allGoals.length)
@@ -831,7 +831,7 @@ class _ObjectivesDialogState extends State<_ObjectivesDialog> {
                             gradient: LinearGradient(colors: [AutumnColors.accentOrange,
                               progress >= 1.0 ? AutumnColors.mossGreen : AutumnColors.accentGold]),
                             borderRadius: BorderRadius.circular(7),
-                            boxShadow: [BoxShadow(color: AutumnColors.accentOrange.withOpacity(0.4), blurRadius: 4)]))),
+                            boxShadow: [BoxShadow(color: AutumnColors.accentOrange.withValues(alpha:0.4), blurRadius: 4)]))),
                     if (progress > 0.15) Positioned.fill(child: Center(child: Text('${(progress * 100).round()}%',
                         style: GoogleFonts.pressStart2p(fontSize: 7, color: Colors.white, fontWeight: FontWeight.bold)))),
                   ]),
@@ -868,7 +868,7 @@ class _ObjectivesDialogState extends State<_ObjectivesDialog> {
                           width: 34, height: 34,
                           decoration: BoxDecoration(
                               color: obj.isCompleted ? AutumnColors.mossGreen
-                                  : obj.isHabit ? AutumnColors.accentGold.withOpacity(0.15) : c.bgSurface,
+                                  : obj.isHabit ? AutumnColors.accentGold.withValues(alpha:0.15) : c.bgSurface,
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
                                   color: obj.isCompleted ? AutumnColors.mossGreen
@@ -909,12 +909,12 @@ class _ObjectivesDialogState extends State<_ObjectivesDialog> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                         decoration: BoxDecoration(
-                            color: AutumnColors.accentOrange.withOpacity(0.06),
+                            color: AutumnColors.accentOrange.withValues(alpha:0.06),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: AutumnColors.accentOrange.withOpacity(0.25))),
+                            border: Border.all(color: AutumnColors.accentOrange.withValues(alpha:0.25))),
                         child: Row(children: [
                           Icon(Icons.edit_note_rounded, size: 13,
-                              color: AutumnColors.accentOrange.withOpacity(0.7)),
+                              color: AutumnColors.accentOrange.withValues(alpha:0.7)),
                           const SizedBox(width: 6),
                           Expanded(child: hasDesc
                               ? Text(quillJsonToPlainText(obj.description),
@@ -978,7 +978,7 @@ class _AddObjectiveRowState extends State<_AddObjectiveRow> {
         'goal_id': widget.goalId,
         'title': _titleCtrl.text.trim(),
         'description': _descJson,
-        'deadline': _deadline?.toIso8601String().substring(0, 10) ?? '',
+        'deadline': _deadline?.toIso8601String().substring(0, 10),
         'type': habitId != null ? 'habit' : 'manual',
         'habit_id': habitId,
         'status': 'pending',
@@ -1051,7 +1051,7 @@ class _AddObjectiveRowState extends State<_AddObjectiveRow> {
           child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
               decoration: BoxDecoration(
-                  color: _deadline != null ? AutumnColors.accentOrange.withOpacity(0.1) : c.bgCard,
+                  color: _deadline != null ? AutumnColors.accentOrange.withValues(alpha:0.1) : c.bgCard,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: _deadline != null ? AutumnColors.accentOrange : c.divider)),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -1069,7 +1069,7 @@ class _AddObjectiveRowState extends State<_AddObjectiveRow> {
           child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
-                  color: _linkHabit ? AutumnColors.accentGold.withOpacity(0.15) : c.bgCard,
+                  color: _linkHabit ? AutumnColors.accentGold.withValues(alpha:0.15) : c.bgCard,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: _linkHabit ? AutumnColors.accentGold : c.divider)),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -1085,7 +1085,7 @@ class _AddObjectiveRowState extends State<_AddObjectiveRow> {
           child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
-                  color: hasDesc ? AutumnColors.accentOrange.withOpacity(0.12) : c.bgCard,
+                  color: hasDesc ? AutumnColors.accentOrange.withValues(alpha:0.12) : c.bgCard,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: hasDesc ? AutumnColors.accentOrange : c.divider)),
               child: Row(mainAxisSize: MainAxisSize.min, children: [

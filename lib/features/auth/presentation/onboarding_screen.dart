@@ -286,7 +286,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         color: AutumnColors.bgCard,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-            color: AutumnColors.mossGreen.withOpacity(0.3), width: 1.5),
+            color: AutumnColors.mossGreen.withValues(alpha:0.3), width: 1.5),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -415,7 +415,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: AutumnColors.mossGreen.withOpacity(0.25),
+                    color: AutumnColors.mossGreen.withValues(alpha:0.25),
                     blurRadius: 50,
                     spreadRadius: 12,
                   )
@@ -486,7 +486,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         color: AutumnColors.bgCard,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-            color: AutumnColors.mossGreen.withOpacity(0.35), width: 1.5),
+            color: AutumnColors.mossGreen.withValues(alpha:0.35), width: 1.5),
       ),
       child: Column(children: [
         Text('ESTADO DE TU ÁRBOL',
@@ -644,7 +644,7 @@ class _NaturePainter extends CustomPainter {
 
       final paint = Paint()
         ..color = (type == 0 ? AutumnColors.mossGreen : AutumnColors.accentGold)
-            .withOpacity(opacity)
+            .withValues(alpha:opacity)
         ..style = PaintingStyle.fill;
 
       if (type == 0) {

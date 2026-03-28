@@ -32,13 +32,17 @@ class TodosNotifier extends StateNotifier<TodosState> {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final todos = await _repo.loadTodos(_userId);
-      state = state.copyWith(todos: _applyFilters(todos), isLoading: false);
+      state = state.copyWith(
+        allTodos:      todos,
+        filteredTodos: _applyFilters(todos),
+        isLoading:     false,
+      );
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
-  // ── Filtros ───────────────────────────────────────────────────────────────
+  // ── Filtros — locales, sin tocar el servidor ──────────────────────────────
 
   List<Todo> _applyFilters(List<Todo> todos) {
     var result = List<Todo>.from(todos);
@@ -64,30 +68,36 @@ class TodosNotifier extends StateNotifier<TodosState> {
     return result;
   }
 
+  void _refreshFilters() {
+    state = state.copyWith(filteredTodos: _applyFilters(state.allTodos));
+  }
+
   void setFilterPriority(String priority) {
     state = state.copyWith(filterPriority: priority);
-    load();
+    _refreshFilters();
   }
 
   void setFilterSort(String sort) {
     state = state.copyWith(filterSort: sort);
-    load();
+    _refreshFilters();
   }
 
   void setFilterCategory(String? category) {
     state = state.copyWith(
       filterCategory: category,
-      clearCategory: category == null,
+      clearCategory:  category == null,
     );
-    load();
+    _refreshFilters();
   }
 
   void clearFilters() {
-    state = TodosState();
-    load();
+    state = TodosState(
+      allTodos:      state.allTodos,
+      filteredTodos: state.allTodos,
+    );
   }
 
-  // ── Crear ─────────────────────────────────────────────────────────────────
+  // ── Crear (optimistic) ────────────────────────────────────────────────────
 
   Future<int> createTodo({
     required String title,
@@ -96,28 +106,34 @@ class TodosNotifier extends StateNotifier<TodosState> {
     String? deadline,
     String? category,
   }) async {
-    // Optimistic: insertar con ID temporal negativo inmediatamente
     final tempId = -DateTime.now().millisecondsSinceEpoch;
     final tempTodo = Todo(
       id: tempId, userId: _userId, title: title, description: description,
       priority: priority, deadline: deadline, category: category,
       status: 'pending', createdAt: DateTime.now().toIso8601String().substring(0, 10),
     );
-    state = state.copyWith(todos: _applyFilters([...state.todos, tempTodo]));
+    final newAll = [...state.allTodos, tempTodo];
+    state = state.copyWith(
+      allTodos:      newAll,
+      filteredTodos: _applyFilters(newAll),
+    );
 
     try {
       final newTodo = await _repo.createTodo(_userId,
           title: title, description: description,
           priority: priority, deadline: deadline, category: category);
-      // Reemplazar el temporal con el real (con ID real de Supabase)
-      final updated = state.todos.map((t) => t.id == tempId ? newTodo : t).toList();
-      state = state.copyWith(todos: updated);
+      final updatedAll = state.allTodos.map((t) => t.id == tempId ? newTodo : t).toList();
+      state = state.copyWith(
+        allTodos:      updatedAll,
+        filteredTodos: _applyFilters(updatedAll),
+      );
       return newTodo.id;
     } catch (e) {
-      // Revertir si falla
+      final reverted = state.allTodos.where((t) => t.id != tempId).toList();
       state = state.copyWith(
-        todos: state.todos.where((t) => t.id != tempId).toList(),
-        error: e.toString(),
+        allTodos:      reverted,
+        filteredTodos: _applyFilters(reverted),
+        error:         e.toString(),
       );
       return -1;
     }
@@ -132,19 +148,20 @@ class TodosNotifier extends StateNotifier<TodosState> {
     String? deadline,
     String? category,
   }) async {
-    // Optimistic
-    final updated = state.todos.map((t) {
+    final updatedAll = state.allTodos.map((t) {
       if (t.id != id) return t;
       return t.copyWith(title: title, description: description,
           priority: priority, deadline: deadline, category: category);
     }).toList();
-    state = state.copyWith(todos: updated);
+    state = state.copyWith(
+      allTodos:      updatedAll,
+      filteredTodos: _applyFilters(updatedAll),
+    );
 
     try {
       await _repo.updateTodo(id, title: title, description: description,
           priority: priority, deadline: deadline, category: category);
     } catch (e) {
-      // Revertir
       await load();
       state = state.copyWith(error: e.toString());
     }
@@ -153,33 +170,48 @@ class TodosNotifier extends StateNotifier<TodosState> {
   // ── Mover columna (optimistic) ────────────────────────────────────────────
 
   Future<void> moveStatus(int id, String newStatus) async {
-    final prev = state.todos.firstWhere((t) => t.id == id);
+    final prevIndex = state.allTodos.indexWhere((t) => t.id == id);
+    if (prevIndex == -1) return;
+    final prev = state.allTodos[prevIndex];
     if (prev.status == newStatus) return;
 
-    // Optimistic
-    final updated = state.todos.map((t) =>
+    final updatedAll = state.allTodos.map((t) =>
     t.id == id ? t.copyWith(status: newStatus) : t).toList();
-    state = state.copyWith(todos: updated);
+    state = state.copyWith(
+      allTodos:      updatedAll,
+      filteredTodos: _applyFilters(updatedAll),
+    );
 
     try {
       await _repo.updateStatus(id, newStatus);
     } catch (e) {
-      // Revertir
-      final reverted = state.todos.map((t) =>
+      final reverted = state.allTodos.map((t) =>
       t.id == id ? t.copyWith(status: prev.status) : t).toList();
-      state = state.copyWith(todos: reverted, error: e.toString());
+      state = state.copyWith(
+        allTodos:      reverted,
+        filteredTodos: _applyFilters(reverted),
+        error:         e.toString(),
+      );
     }
   }
 
   // ── Eliminar (optimistic) ─────────────────────────────────────────────────
 
   Future<void> deleteTodo(int id) async {
-    final prev = List<Todo>.from(state.todos);
-    state = state.copyWith(todos: state.todos.where((t) => t.id != id).toList());
+    final prevAll = List<Todo>.from(state.allTodos);
+    final newAll  = state.allTodos.where((t) => t.id != id).toList();
+    state = state.copyWith(
+      allTodos:      newAll,
+      filteredTodos: _applyFilters(newAll),
+    );
     try {
       await _repo.deleteTodo(id);
     } catch (e) {
-      state = state.copyWith(todos: prev, error: e.toString());
+      state = state.copyWith(
+        allTodos:      prevAll,
+        filteredTodos: _applyFilters(prevAll),
+        error:         e.toString(),
+      );
     }
   }
 

@@ -170,6 +170,7 @@ class HabitsRepository {
           .toIso8601String()
           .substring(0, 10);
 
+      // 1 query — hábitos activos creados antes de ayer
       final habits = await _db
           .from('habits')
           .select('id, name')
@@ -177,27 +178,36 @@ class HabitsRepository {
           .eq('active', true)
           .lte('created_at', yesterday);
 
-      final missing = <({int id, String name})>[];
-      for (final h in habits) {
+      if (habits.isEmpty) return [];
+
+      final habitIds = habits.map((h) => h['id'] as int).toList();
+
+      // 1 query — logs completados ayer
+      final logs = await _db
+          .from('habit_logs')
+          .select('habit_id')
+          .inFilter('habit_id', habitIds)
+          .eq('date', yesterday)
+          .eq('completed', true);
+
+      // 1 query — freezes de ayer
+      final freezes = await _db
+          .from('habit_freeze_days')
+          .select('habit_id')
+          .inFilter('habit_id', habitIds)
+          .eq('date', yesterday);
+
+      // Filtrar en Dart
+      final completedIds = logs.map((l) => l['habit_id'] as int).toSet();
+      final frozenIds    = freezes.map((f) => f['habit_id'] as int).toSet();
+
+      return habits
+          .where((h) {
         final hid = h['id'] as int;
-        final log = await _db
-            .from('habit_logs')
-            .select('id')
-            .eq('habit_id', hid)
-            .eq('date', yesterday)
-            .eq('completed', true)
-            .maybeSingle();
-        final frozen = await _db
-            .from('habit_freeze_days')
-            .select('id')
-            .eq('habit_id', hid)
-            .eq('date', yesterday)
-            .maybeSingle();
-        if (log == null && frozen == null) {
-          missing.add((id: hid, name: h['name'] as String));
-        }
-      }
-      return missing;
+        return !completedIds.contains(hid) && !frozenIds.contains(hid);
+      })
+          .map((h) => (id: h['id'] as int, name: h['name'] as String))
+          .toList();
     } catch (_) {
       return [];
     }
@@ -251,6 +261,8 @@ class HabitsRepository {
           .subtract(const Duration(days: 1))
           .toIso8601String()
           .substring(0, 10);
+
+      // 1 query — todos los hábitos activos creados antes de ayer
       final habits = await _db
           .from('habits')
           .select('id, name')
@@ -258,28 +270,152 @@ class HabitsRepository {
           .eq('active', true)
           .lte('created_at', yesterday);
 
+      if (habits.isEmpty) return;
+
+      final habitIds = habits.map((h) => h['id'] as int).toList();
+
+      // 1 query — todos los logs de ayer para estos hábitos
+      final logs = await _db
+          .from('habit_logs')
+          .select('habit_id')
+          .inFilter('habit_id', habitIds)
+          .eq('date', yesterday)
+          .eq('completed', true);
+
+      // 1 query — todos los freezes de ayer para estos hábitos
+      final freezes = await _db
+          .from('habit_freeze_days')
+          .select('habit_id')
+          .inFilter('habit_id', habitIds)
+          .eq('date', yesterday);
+
+      // Filtrar en Dart — sin más queries
+      final completedIds = logs.map((l) => l['habit_id'] as int).toSet();
+      final frozenIds    = freezes.map((f) => f['habit_id'] as int).toSet();
+
       for (final h in habits) {
         final hid = h['id'] as int;
-        final log = await _db
-            .from('habit_logs')
-            .select('id')
-            .eq('habit_id', hid)
-            .eq('date', yesterday)
-            .eq('completed', true)
-            .maybeSingle();
-        final frozen = await _db
-            .from('habit_freeze_days')
-            .select('id')
-            .eq('habit_id', hid)
-            .eq('date', yesterday)
-            .maybeSingle();
-        if (log == null && frozen == null) {
+        if (!completedIds.contains(hid) && !frozenIds.contains(hid)) {
           await applyXp(userId, -15, 'Hábito no registrado: ${h['name']}',
               'habit_missed', hid, yesterday);
         }
       }
     } catch (e) {
       debugPrint('checkMissed error: $e');
+    }
+  }
+
+  // ── Evaluar objetivos de hábito vencidos ──────────────────────────────────
+
+  Future<void> checkOverdueHabitObjectives(String userId) async {
+    try {
+      final today = DateTime.now().toIso8601String().substring(0, 10);
+
+      // Traer todos los objetivos de tipo hábito pendientes con deadline vencido
+      final objectives = await _db
+          .from('objectives')
+          .select('id, habit_id, created_at, deadline')
+          .eq('type', 'habit')
+          .eq('status', 'pending')
+          .not('deadline', 'is', null)
+          .lte('deadline', today);
+
+      if ((objectives as List).isEmpty) return;
+
+      // Verificar que el hábito pertenece al usuario
+      final habitIds = objectives
+          .map((o) => o['habit_id'] as int)
+          .toSet()
+          .toList();
+
+      final userHabits = await _db
+          .from('habits')
+          .select('id')
+          .eq('user_id', userId)
+          .inFilter('id', habitIds);
+
+      final userHabitIds = (userHabits as List)
+          .map((h) => h['id'] as int)
+          .toSet();
+
+      for (final obj in objectives) {
+        final habitId  = obj['habit_id'] as int;
+
+        // Solo procesar hábitos del usuario actual
+        if (!userHabitIds.contains(habitId)) continue;
+
+        final objId        = obj['id'] as int;
+        final deadlineRaw  = obj['deadline'];
+        final createdAtRaw = obj['created_at'] as String;
+
+        // Saltar si deadline es null o vacío
+        if (deadlineRaw == null || deadlineRaw.toString().isEmpty) continue;
+        final deadline = deadlineRaw.toString();
+
+        // Convertir created_at UTC a fecha local
+        final createdAtUtc   = DateTime.parse(createdAtRaw);
+        final createdAtLocal = createdAtUtc.toLocal();
+        final startDate      = DateTime(
+          createdAtLocal.year,
+          createdAtLocal.month,
+          createdAtLocal.day,
+        ).toIso8601String().substring(0, 10);
+
+        // Calcular período
+        final start     = DateTime.parse(startDate);
+        final end       = DateTime.parse(deadline);
+        final totalDays = end.difference(start).inDays + 1;
+        if (totalDays <= 0) continue;
+
+        // Contar días completados
+        final logs = await _db
+            .from('habit_logs')
+            .select('date')
+            .eq('habit_id', habitId)
+            .eq('completed', true)
+            .gte('date', startDate)
+            .lte('date', deadline);
+
+        final completedDays = (logs as List).length;
+        final ratio         = completedDays / totalDays;
+
+        debugPrint('checkOverdueHabitObjectives: obj=$objId habit=$habitId '
+            'start=$startDate end=$deadline '
+            'completed=$completedDays total=$totalDays '
+            'ratio=${(ratio * 100).round()}%');
+
+        if (ratio >= 0.80) {
+          await _db
+              .from('objectives')
+              .update({'status': 'completed'})
+              .eq('id', objId);
+
+          await applyXp(
+            userId,
+            50,
+            'Objetivo de hábito completado',
+            'objective_habit_completed',
+            objId,
+            today,
+          );
+        } else {
+          await _db
+              .from('objectives')
+              .update({'status': 'failed'})
+              .eq('id', objId);
+
+          await applyXp(
+            userId,
+            -80,
+            'Objetivo de hábito fallido (${(ratio * 100).round()}% completado)',
+            'objective_habit_failed',
+            objId,
+            today,
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('checkOverdueHabitObjectives error: $e');
     }
   }
 }

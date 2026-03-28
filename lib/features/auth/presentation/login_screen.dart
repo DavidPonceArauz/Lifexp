@@ -222,7 +222,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
           hintText: 'ACCESS CODE',
           hintStyle: GoogleFonts.pressStart2p(fontSize: 9, color: AutumnColors.textDisabled),
           filled: true, fillColor: AutumnColors.bgSurface,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AutumnColors.mossGreen.withOpacity(0.4))),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AutumnColors.mossGreen.withValues(alpha: 0.4))),
           focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AutumnColors.accentOrange, width: 1.5)),
           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
           suffixIcon: IconButton(

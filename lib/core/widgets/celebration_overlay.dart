@@ -143,7 +143,7 @@ class _LevelUpOverlayState extends State<_LevelUpOverlay>
                 border: Border.all(color: AutumnColors.accentGold, width: 2),
                 boxShadow: [
                   BoxShadow(
-                    color: AutumnColors.accentGold.withOpacity(0.4),
+                    color: AutumnColors.accentGold.withValues(alpha: 0.4),
                     blurRadius: 24,
                     spreadRadius: 4,
                   ),
@@ -254,7 +254,7 @@ class HabitCompleteAnimationState extends State<HabitCompleteAnimation>
             borderRadius: BorderRadius.circular(12),
             boxShadow: _glow.value > 0.01
                 ? [BoxShadow(
-                    color: AutumnColors.mossGreen.withOpacity(0.45 * _glow.value),
+                    color: AutumnColors.mossGreen.withValues(alpha: 0.45 * _glow.value),
                     blurRadius: 16 * _glow.value,
                     spreadRadius: 2 * _glow.value,
                   )]
@@ -358,7 +358,7 @@ class _StrikePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (progress <= 0) return;
     final paint = Paint()
-      ..color = color.withOpacity(0.85)
+      ..color = color.withValues(alpha:0.85)
       ..strokeWidth = 2.0
       ..strokeCap = StrokeCap.square;
     final y = size.height * 0.52;

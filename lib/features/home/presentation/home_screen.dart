@@ -97,10 +97,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     _floatCtrl.dispose();
     super.dispose();
   }
-
   Future<void> _loadAll() async {
     await Future.wait([
-      _checkOverdueGoals(),
       _loadAllStats(),
       _loadDeadlines(),
       _loadCalendarEvents(),
@@ -109,38 +107,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       if (mounted) _checkFreezeNotification();
     });
   }
-
-  Future<void> _checkOverdueGoals() async {
-    try {
-      final today = DateTime.now().toIso8601String().substring(0, 10);
-      final overdueGoals = await _db
-          .from('goals').select('id')
-          .eq('user_id', widget.userId).eq('status', 'active').lt('deadline', today);
-      for (final g in overdueGoals) {
-        await _db.from('goals').update({'status': 'failed'}).eq('id', g['id']);
-        await _applyXp(-50, 'Meta vencida', 'goal_failed', g['id'] as int, today);
-      }
-    } catch (e) { debugPrint('checkOverdue error: $e'); }
-  }
-
-  Future<void> _applyXp(int amount, String reason, String source,
-      int sourceId, String eventDate) async {
-    try {
-      final existing = await _db.from('xp_log').select('id')
-          .eq('source', source).eq('source_id', sourceId)
-          .eq('event_date', eventDate).maybeSingle();
-      if (existing != null) return;
-      final profile = await _db.from('profiles').select('total_xp')
-          .eq('id', widget.userId).single();
-      final newXp = ((profile['total_xp'] as int? ?? 0) + amount).clamp(0, 999999);
-      await _db.from('profiles').update({'total_xp': newXp}).eq('id', widget.userId);
-      await _db.from('xp_log').insert({
-        'user_id': widget.userId, 'amount': amount, 'reason': reason,
-        'source': source, 'source_id': sourceId, 'event_date': eventDate,
-      });
-    } catch (e) { debugPrint('XP error: $e'); }
-  }
-
   Future<void> _loadAllStats() async {
     try {
       final results = await Future.wait([_fetchStats(), _fetchXp()]);
@@ -556,7 +522,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           child: Row(children: weekdays.map((d) => Expanded(child: Center(
             child: Text(d, style: GoogleFonts.pressStart2p(fontSize: 7,
                 color: d == 'S' || d == 'D'
-                    ? AutumnColors.accentRed.withOpacity(0.6) : c.textDisabled)),
+                    ? AutumnColors.accentRed.withValues(alpha:0.6) : c.textDisabled)),
           ))).toList()),
         ),
         const SizedBox(height: 4),
@@ -607,7 +573,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         margin: const EdgeInsets.all(1),
         decoration: BoxDecoration(
           color: isToday
-              ? AutumnColors.accentOrange.withOpacity(0.15)
+              ? AutumnColors.accentOrange.withValues(alpha:0.15)
               : events.isNotEmpty ? c.bgSurface : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           border: isToday ? Border.all(color: AutumnColors.accentOrange, width: 1.5) : null,
@@ -616,7 +582,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           Text('$day', style: GoogleFonts.pressStart2p(
             fontSize: 8,
             color: isToday ? AutumnColors.accentOrange
-                : isWeekend ? AutumnColors.accentRed.withOpacity(0.6)
+                : isWeekend ? AutumnColors.accentRed.withValues(alpha:0.6)
                 : c.textPrimary,
             fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
           )),
@@ -676,7 +642,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             decoration: BoxDecoration(
               color: c.bgCard,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-              border: Border.all(color: AutumnColors.accentOrange.withOpacity(0.3)),
+              border: Border.all(color: AutumnColors.accentOrange.withValues(alpha:0.3)),
             ),
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
             child: SingleChildScrollView(
@@ -698,9 +664,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
-                              color: AutumnColors.accentOrange.withOpacity(0.12),
+                              color: AutumnColors.accentOrange.withValues(alpha:0.12),
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: AutumnColors.accentOrange.withOpacity(0.4))),
+                              border: Border.all(color: AutumnColors.accentOrange.withValues(alpha:0.4))),
                           child: Row(mainAxisSize: MainAxisSize.min, children: [
                             const Icon(Icons.add, size: 12, color: AutumnColors.accentOrange),
                             const SizedBox(width: 4),
@@ -722,9 +688,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                           decoration: BoxDecoration(
-                              color: e.flutterColor.withOpacity(0.08),
+                              color: e.flutterColor.withValues(alpha:0.08),
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: e.flutterColor.withOpacity(0.3))),
+                              border: Border.all(color: e.flutterColor.withValues(alpha:0.3))),
                           child: Row(children: [
                             Container(width: 8, height: 8,
                                 decoration: BoxDecoration(color: e.flutterColor, shape: BoxShape.circle)),
@@ -883,7 +849,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         color: col,
                         shape: BoxShape.circle,
                         border: isSelected ? Border.all(color: Colors.white, width: 2.5) : null,
-                        boxShadow: isSelected ? [BoxShadow(color: col.withOpacity(0.5), blurRadius: 6)] : null,
+                        boxShadow: isSelected ? [BoxShadow(color: col.withValues(alpha:0.5), blurRadius: 6)] : null,
                       ),
                       child: isSelected ? const Icon(Icons.check, color: Colors.white, size: 16) : null,
                     ),
@@ -970,12 +936,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     return Container(
       decoration: BoxDecoration(
           color: c.bgCard, borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AutumnColors.mossGreen.withOpacity(0.45), width: 1.5),
-          boxShadow: [BoxShadow(color: AutumnColors.mossGreen.withOpacity(0.08), blurRadius: 12, offset: const Offset(0, 4))]),
+          border: Border.all(color: AutumnColors.mossGreen.withValues(alpha:0.45), width: 1.5),
+          boxShadow: [BoxShadow(color: AutumnColors.mossGreen.withValues(alpha:0.08), blurRadius: 12, offset: const Offset(0, 4))]),
       child: Column(children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(color: AutumnColors.mossGreen.withOpacity(0.08),
+          decoration: BoxDecoration(color: AutumnColors.mossGreen.withValues(alpha:0.08),
               borderRadius: const BorderRadius.only(topLeft: Radius.circular(15), topRight: Radius.circular(15))),
           child: Row(children: [
             Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -992,7 +958,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         SizedBox(height: 200, child: Stack(alignment: Alignment.center, children: [
           Positioned(bottom: 0, left: 0, right: 0, child: Container(height: 32,
               decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter, colors: [AutumnColors.mossGreen.withOpacity(0), AutumnColors.mossGreen.withOpacity(0.08)])))),
+                  end: Alignment.bottomCenter, colors: [AutumnColors.mossGreen.withValues(alpha:0), AutumnColors.mossGreen.withValues(alpha:0.08)])))),
           Positioned(left: 18, top: 30, child: Transform.rotate(angle: -0.4,
               child: Opacity(opacity: 0.55, child: Image.asset('assets/images/leaf_orange.png', width: 22, height: 22, filterQuality: FilterQuality.none)))),
           Positioned(left: 38, bottom: 50, child: Transform.rotate(angle: 0.6,
@@ -1048,8 +1014,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
       decoration: BoxDecoration(color: c.bgCard, borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.3), width: 1.5),
-          boxShadow: [BoxShadow(color: color.withOpacity(0.06), blurRadius: 6, offset: const Offset(0, 2))]),
+          border: Border.all(color: color.withValues(alpha:0.3), width: 1.5),
+          boxShadow: [BoxShadow(color: color.withValues(alpha:0.06), blurRadius: 6, offset: const Offset(0, 2))]),
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         Text(emoji, style: const TextStyle(fontSize: 20)),
         const SizedBox(height: 5),
@@ -1094,9 +1060,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           Expanded(child: Text(title.length > 30 ? '${title.substring(0, 30)}…' : title,
               style: GoogleFonts.pressStart2p(fontSize: 8, color: c.textPrimary))),
           Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: color.withOpacity(0.12),
+              decoration: BoxDecoration(color: color.withValues(alpha:0.12),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: color.withOpacity(0.4))),
+                  border: Border.all(color: color.withValues(alpha:0.4))),
               child: Text(label, style: GoogleFonts.pressStart2p(fontSize: 7, color: color))),
         ]));
   }

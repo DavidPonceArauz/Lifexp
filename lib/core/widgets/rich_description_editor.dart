@@ -100,7 +100,7 @@ class _RichEditorSheetState extends State<_RichEditorSheet> {
           decoration: BoxDecoration(
             color: c.bgCard,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            border: Border.all(color: widget.accentColor.withOpacity(0.3)),
+            border: Border.all(color: widget.accentColor.withValues(alpha:0.3)),
           ),
           child: Column(children: [
             const SizedBox(height: 12),

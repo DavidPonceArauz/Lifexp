@@ -158,7 +158,7 @@ ThemeData autumnTheme() {
       ),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(MobileSizes.borderRadius),
-        borderSide: BorderSide(color: AutumnColors.accentOrange.withOpacity(0.4), width: 1.5),
+        borderSide: BorderSide(color: AutumnColors.accentOrange.withValues(alpha: 0.4), width: 1.5),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(MobileSizes.borderRadius),
@@ -218,7 +218,7 @@ ThemeData autumnThemeDark() {
       ),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(MobileSizes.borderRadius),
-        borderSide: BorderSide(color: AutumnDarkColors.accentOrange.withOpacity(0.4), width: 1.5),
+        borderSide: BorderSide(color: AutumnDarkColors.accentOrange.withValues(alpha: 0.4), width: 1.5),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(MobileSizes.borderRadius),

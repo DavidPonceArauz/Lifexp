@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/supabase/supabase_client.dart';
 import '../../../core/theme/autumn_theme.dart';
 import '../../../core/widgets/autumn_widgets.dart';
+import '../data/auth_repository.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -74,6 +75,14 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
 
     setState(() => _loading = true);
     try {
+      // Verificar username único antes de crear la cuenta
+      final repo = AuthRepository();
+      final exists = await repo.usernameExists(username);
+      if (exists) {
+        _showError('❌ ESE USERNAME YA ESTÁ EN USO');
+        return;
+      }
+
       final response = await SupabaseConfig.client.auth.signUp(
         email: email,
         password: password,
@@ -225,7 +234,7 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
         hintText: hint,
         hintStyle: GoogleFonts.pressStart2p(fontSize: 9, color: AutumnColors.textDisabled),
         filled: true, fillColor: AutumnColors.bgSurface,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AutumnColors.mossGreen.withOpacity(0.4))),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AutumnColors.mossGreen.withValues(alpha: 0.4))),
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AutumnColors.mossGreen, width: 1.5)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         suffixIcon: IconButton(

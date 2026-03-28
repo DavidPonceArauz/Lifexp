@@ -394,7 +394,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
         border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
             borderSide:
-                BorderSide(color: AutumnColors.mossGreen.withOpacity(0.4))),
+            BorderSide(color: AutumnColors.mossGreen.withValues(alpha: 0.4))),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       ),
@@ -607,10 +607,10 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                          color: AutumnColors.accentGold.withOpacity(0.1),
+                          color: AutumnColors.accentGold.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                              color: AutumnColors.accentGold.withOpacity(0.4))),
+                              color: AutumnColors.accentGold.withValues(alpha: 0.4))),
                       child: Text('📋 REGISTRO DE ESTE DÍA (solo lectura)',
                           style: GoogleFonts.pressStart2p(
                               fontSize: 9, color: AutumnColors.accentGold),
@@ -677,7 +677,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
           alignment: Alignment.centerLeft,
           padding: const EdgeInsets.only(left: 20),
           decoration: BoxDecoration(
-              color: AutumnColors.accentRed.withOpacity(0.15),
+              color: AutumnColors.accentRed.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(12)),
           child:
               const Icon(Icons.delete_outline, color: AutumnColors.accentRed)),
@@ -717,7 +717,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
               border: Border.all(color: c.divider),
               boxShadow: [
                 BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
+                    color: Colors.black.withValues(alpha: 0.06),
                     blurRadius: 4,
                     offset: const Offset(2, -2))
               ]),
@@ -826,7 +826,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
           border: Border.all(color: AutumnColors.accentGold, width: 1.5),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.06),
+                color: Colors.black.withValues(alpha: 0.06),
                 blurRadius: 4,
                 offset: const Offset(0, 2))
           ]),
@@ -939,7 +939,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
               color: activeFilters > 0
-                  ? AutumnColors.mossGreen.withOpacity(0.5)
+                  ? AutumnColors.mossGreen.withValues(alpha: 0.5)
                   : c.divider)),
       child: Column(children: [
         GestureDetector(

@@ -123,7 +123,7 @@ class _XpToastWidgetState extends State<_XpToastWidget>
                     padding: const EdgeInsets.symmetric(
                         horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: AutumnColors.bgCard.withOpacity(0.82),
+                      color: AutumnColors.bgCard.withValues(alpha:0.82),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
