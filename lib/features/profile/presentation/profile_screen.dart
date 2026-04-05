@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'stats_charts.dart';
+import '../../../core/services/xp_service.dart';
 import '../../../core/supabase/supabase_client.dart';
 import '../../../core/theme/autumn_theme.dart';
 import '../../../core/theme/language_provider.dart';
@@ -79,6 +80,7 @@ class ProfileScreen extends ConsumerStatefulWidget {
 class _ProfileScreenState extends ConsumerState<ProfileScreen>
     with TickerProviderStateMixin {
   final _db = SupabaseConfig.client;
+  final _xpService = XpService();
 
   String _username = '';
   String _email = '';
@@ -278,10 +280,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     );
     if (!confirmed || !mounted) return;
     try {
-      await _db.from('xp_log').delete().eq('user_id', widget.userId);
-      await _db
-          .from('profiles')
-          .update({'total_xp': 0}).eq('id', widget.userId);
+      await _xpService.resetXp(userId: widget.userId);
       setState(() {
         _totalXp = 0;
         _level = 1;

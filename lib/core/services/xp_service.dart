@@ -44,4 +44,15 @@ class XpService {
       debugPrint('XP error: $e');
     }
   }
+
+  Future<void> resetXp({
+    required String userId,
+  }) async {
+    try {
+      await _db.from('xp_log').delete().eq('user_id', userId);
+      await _db.from('profiles').update({'total_xp': 0}).eq('id', userId);
+    } catch (e) {
+      debugPrint('XP reset error: $e');
+    }
+  }
 }

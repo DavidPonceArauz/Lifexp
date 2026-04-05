@@ -49,10 +49,11 @@ class StatsChartLoader {
           .eq('user_id', userId)
           .gte('date', since)
           .order('date'),
-      // 1: profiles xp snapshots — fallback: just current xp from profiles
-      db.from('profiles')
-          .select('total_xp')
-          .eq('id', userId),
+      // 1: xp log history
+      db.from('xp_log')
+          .select('event_date, amount')
+          .eq('user_id', userId)
+          .order('event_date'),
       // 2: habits by category
       db.from('habits')
           .select('category')
@@ -76,7 +77,7 @@ class StatsChartLoader {
     ]);
 
     final habitLogs   = results[0] as List;
-    final profile     = (results[1] as List).isNotEmpty ? results[1][0] as Map : <String, dynamic>{};
+    final xpLog       = results[1] as List;
     final habits      = results[2] as List;
     final goals       = results[3] as List;
     final todos       = results[4] as List;
@@ -97,9 +98,8 @@ class StatsChartLoader {
       return DailyCompletion(d, completionMap[key] ?? 0);
     });
 
-    // ── XP evolution — simulate from total_xp since we may not have history ─
-    final totalXp = profile['total_xp'] as int? ?? 0;
-    final List<XpPoint> xpPoints = _simulateXpCurve(totalXp, days);
+    // ── XP evolution from real xp_log history ─────────────────────────────
+    final List<XpPoint> xpPoints = _buildXpHistory(xpLog, days);
 
     // ── Category breakdown ─────────────────────────────────────────────────
     final Map<String, int> catMap = {};
@@ -128,16 +128,25 @@ class StatsChartLoader {
     );
   }
 
-  static List<XpPoint> _simulateXpCurve(int totalXp, int days) {
-    // Approximate a logarithmic growth curve ending at totalXp
-    final List<XpPoint> pts = [];
+  static List<XpPoint> _buildXpHistory(List xpLog, int days) {
     final now = DateTime.now();
-    for (int i = 0; i < days; i++) {
-      final t = (i + 1) / days;
-      final xp = (totalXp * (t * t)).round();
-      pts.add(XpPoint(now.subtract(Duration(days: days - 1 - i)), xp));
+    final dayTotals = <String, int>{};
+
+    for (final row in xpLog) {
+      final rawDate = row['event_date'] as String?;
+      if (rawDate == null || rawDate.isEmpty) continue;
+      final amount = row['amount'] as int? ?? 0;
+      dayTotals[rawDate] = (dayTotals[rawDate] ?? 0) + amount;
     }
-    return pts;
+
+    int runningXp = 0;
+    return List.generate(days, (i) {
+      final date = now.subtract(Duration(days: days - 1 - i));
+      final key =
+          '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+      runningXp = (runningXp + (dayTotals[key] ?? 0)).clamp(0, 999999);
+      return XpPoint(date, runningXp);
+    });
   }
 
   static List<StreakPoint> _buildStreakHistory(List allLogs, int days) {
