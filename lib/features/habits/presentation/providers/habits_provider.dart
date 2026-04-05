@@ -160,7 +160,11 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
       }
 
       // ── Evaluar objetivos vinculados a este hábito ────────────────────
-      await _checkLinkedObjectives(habitId);
+      try {
+        await _checkLinkedObjectives(habitId);
+      } catch (e) {
+        debugPrint('_checkLinkedObjectives post-toggle error: $e');
+      }
     } catch (e) {
       final revertCache = Map<int, bool>.from(state.completedCache);
       revertCache[habitId] = wasCompleted;
@@ -189,31 +193,36 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
     try {
       final today = DateTime.now().toIso8601String().substring(0, 10);
 
-      // Buscar objetivos ligados a este hábito que estén pendientes y tengan deadline
+      final ownedHabit = await _db
+          .from('habits')
+          .select('id')
+          .eq('id', habitId)
+          .eq('user_id', _userId)
+          .maybeSingle();
+
+      if (ownedHabit == null) {
+        debugPrint('_checkLinkedObjectives skipped: habit=$habitId does not belong to user=$_userId');
+        return;
+      }
+
       final objectives = await _db
           .from('objectives')
-          .select('id, goal_id, created_at, deadline, status')
+          .select('id, goal_id, created_at, deadline, status, goals!inner(user_id)')
           .eq('habit_id', habitId)
           .eq('type', 'habit')
           .eq('status', 'pending')
+          .eq('goals.user_id', _userId)
           .not('deadline', 'is', null);
 
       for (final obj in objectives as List) {
-        final objId        = obj['id'] as int;
-        final deadlineRaw  = obj['deadline'];
+        final objId       = obj['id'] as int;
+        final deadlineRaw = obj['deadline'];
         final createdAtRaw = obj['created_at'] as String;
 
-        // Saltar si deadline es null o vacío
         if (deadlineRaw == null || deadlineRaw.toString().isEmpty) continue;
-        final deadline = deadlineRaw.toString();
+        final endDate = deadlineRaw.toString();
 
-        // Solo evaluar si el deadline ya llegó o pasó
-        if (deadline.compareTo(today) > 0) continue;
-
-        // ── Fix timezone: convertir created_at a fecha local ──────────────
-        // El created_at viene como UTC desde Supabase. Convertimos a local
-        // para calcular el período correcto según el timezone del usuario.
-        final createdAtUtc = DateTime.parse(createdAtRaw);
+        final createdAtUtc   = DateTime.parse(createdAtRaw);
         final createdAtLocal = createdAtUtc.toLocal();
         final startDate = DateTime(
           createdAtLocal.year,
@@ -221,64 +230,47 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
           createdAtLocal.day,
         ).toIso8601String().substring(0, 10);
 
-        final endDate = deadline; // ya viene como date sin timezone
-
-        // Calcular período: desde fecha local de creación hasta deadline
         final start     = DateTime.parse(startDate);
         final end       = DateTime.parse(endDate);
         final totalDays = end.difference(start).inDays + 1;
         if (totalDays <= 0) continue;
 
-        // Contar días completados en habit_logs dentro del período
+        final deadlineReached = endDate.compareTo(today) <= 0;
+        final evalEnd     = deadlineReached ? endDate : today;
+        final elapsedDays = DateTime.parse(evalEnd).difference(start).inDays + 1;
+        if (elapsedDays <= 0) continue;
+
+        debugPrint('QUERY: habit_id=$habitId user_id=$_userId startDate=$startDate evalEnd=$evalEnd');
+
         final logs = await _db
             .from('habit_logs')
             .select('date')
             .eq('habit_id', habitId)
+            .eq('user_id', _userId)
             .eq('completed', true)
             .gte('date', startDate)
-            .lte('date', endDate);
+            .lte('date', evalEnd);
 
+        debugPrint('LOGS RAW: $logs');
         final completedDays = (logs as List).length;
-        final ratio = completedDays / totalDays;
+        final ratio = completedDays / (deadlineReached ? totalDays : elapsedDays);
 
         debugPrint('_checkLinkedObjectives: obj=$objId habit=$habitId '
-            'start=$startDate end=$endDate '
-            'completed=$completedDays total=$totalDays '
-            'ratio=${(ratio * 100).round()}%');
+            'start=$startDate end=$endDate evalEnd=$evalEnd '
+            'completed=$completedDays elapsed=$elapsedDays total=$totalDays '
+            'ratio=${(ratio * 100).round()}% deadlineReached=$deadlineReached');
 
         if (ratio >= 0.80) {
-          // ✅ Objetivo cumplido
-          await _db
-              .from('objectives')
-              .update({'status': 'completed'})
-              .eq('id', objId);
-
-          await _repo.applyXp(
-            _userId,
-            50,
-            'Objetivo de hábito completado',
-            'objective_habit_completed',
-            objId,
-            today,
-          );
-        } else {
-          // ❌ Objetivo fallido — deadline pasó y no alcanzó el 80%
-          await _db
-              .from('objectives')
-              .update({'status': 'failed'})
-              .eq('id', objId);
-
-          await _repo.applyXp(
-            _userId,
-            -80,
-            'Objetivo de hábito fallido (${(ratio * 100).round()}% completado)',
-            'objective_habit_failed',
-            objId,
-            today,
-          );
+          await _db.from('objectives').update({'status': 'completed'}).eq('id', objId);
+          await _repo.applyXp(_userId, 50, 'Objetivo de hábito completado',
+              'objective_habit_completed', objId, today);
+        } else if (deadlineReached) {
+          await _db.from('objectives').update({'status': 'failed'}).eq('id', objId);
+          await _repo.applyXp(_userId, -80,
+              'Objetivo de hábito fallido (${(ratio * 100).round()}% completado)',
+              'objective_habit_failed', objId, today);
         }
 
-        // Refrescar goals para que la barra de progreso se actualice
         _ref.invalidate(goalsProvider);
       }
     } catch (e) {

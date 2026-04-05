@@ -9,6 +9,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/theme/autumn_theme.dart';
+import 'core/theme/language_provider.dart';
 import 'core/supabase/supabase_client.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/widget_service.dart';
@@ -123,12 +124,18 @@ class _LifeXPAppState extends ConsumerState<LifeXPApp> {
   @override
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
+    final language  = ref.watch(languageProvider);
+    final locale    = language == AppLanguage.en
+        ? const Locale('en')
+        : const Locale('es');
+
     return MaterialApp(
       title: 'LifeXP',
       debugShowCheckedModeBanner: false,
       theme: autumnTheme(),
       darkTheme: autumnThemeDark(),
       themeMode: themeMode,
+      locale: locale,
       navigatorKey: _navigatorKey,
       navigatorObservers: [SentryNavigatorObserver()],
 

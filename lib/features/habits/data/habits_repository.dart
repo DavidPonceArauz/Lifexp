@@ -314,9 +314,10 @@ class HabitsRepository {
       // Traer todos los objetivos de tipo hábito pendientes con deadline vencido
       final objectives = await _db
           .from('objectives')
-          .select('id, habit_id, created_at, deadline')
+          .select('id, habit_id, created_at, deadline, goals!inner(user_id)')
           .eq('type', 'habit')
           .eq('status', 'pending')
+          .eq('goals.user_id', userId)
           .not('deadline', 'is', null)
           .lte('deadline', today);
 
@@ -361,17 +362,19 @@ class HabitsRepository {
           createdAtLocal.day,
         ).toIso8601String().substring(0, 10);
 
-        // Calcular período
+        // Calcular período completo
         final start     = DateTime.parse(startDate);
         final end       = DateTime.parse(deadline);
         final totalDays = end.difference(start).inDays + 1;
         if (totalDays <= 0) continue;
 
-        // Contar días completados
+        // checkOverdueHabitObjectives solo se llama cuando deadline ya venció
+        // así que siempre evaluamos sobre el total de días
         final logs = await _db
             .from('habit_logs')
             .select('date')
             .eq('habit_id', habitId)
+            .eq('user_id', userId)
             .eq('completed', true)
             .gte('date', startDate)
             .lte('date', deadline);
