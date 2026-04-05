@@ -3,11 +3,13 @@
 // ===========================
 
 import 'package:flutter/foundation.dart';
+import '../../../core/services/xp_service.dart';
 import '../domain/goal.dart';
 import '../../../core/supabase/supabase_client.dart';
 
 class GoalsRepository {
   final _db = SupabaseConfig.client;
+  final _xpService = XpService();
 
   // ── Carga principal ───────────────────────────────────────────────────────
 
@@ -185,20 +187,13 @@ class GoalsRepository {
 
   Future<void> applyXp(String userId, int amount, String reason,
       String source, int sourceId, String eventDate) async {
-    try {
-      final existing = await _db.from('xp_log').select('id')
-          .eq('source', source).eq('source_id', sourceId)
-          .eq('event_date', eventDate).maybeSingle();
-      if (existing != null) return;
-      final profile = await _db.from('profiles').select('total_xp').eq('id', userId).single();
-      final newXp = ((profile['total_xp'] as int? ?? 0) + amount).clamp(0, 999999);
-      await _db.from('profiles').update({'total_xp': newXp}).eq('id', userId);
-      await _db.from('xp_log').insert({
-        'user_id': userId, 'amount': amount, 'reason': reason,
-        'source': source, 'source_id': sourceId, 'event_date': eventDate,
-      });
-    } catch (e) {
-      debugPrint('XP error: $e');
-    }
+    await _xpService.applyXp(
+      userId: userId,
+      amount: amount,
+      reason: reason,
+      source: source,
+      sourceId: sourceId,
+      eventDate: eventDate,
+    );
   }
 }
