@@ -4,6 +4,7 @@
 
 import 'package:flutter/foundation.dart';
 import '../domain/habit.dart';
+import '../domain/habit_objective_eval.dart';
 import '../../../core/supabase/supabase_client.dart';
 
 class HabitsRepository {

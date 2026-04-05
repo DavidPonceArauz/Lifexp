@@ -4,6 +4,7 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/habit.dart';
+import '../../domain/habit_objective_eval.dart';
 import '../../domain/habits_state.dart';
 import '../../data/habits_repository.dart';
 import '../../../../core/services/widget_service.dart';
@@ -130,6 +131,16 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
     try {
       final dateStr = state.selectedDate.toIso8601String().substring(0, 10);
       await _repo.toggleCompleted(habitId, _userId, dateStr);
+      if (newCompleted) {
+        await _repo.applyXp(
+          _userId,
+          10,
+          'Hábito completado',
+          'habit_completed',
+          habitId,
+          dateStr,
+        );
+      }
 
       // ── Analytics: solo si el servidor confirmó ───────────────────────
       if (newCompleted) {

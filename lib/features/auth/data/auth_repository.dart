@@ -22,7 +22,15 @@ class AuthRepository {
     String? email,
     String? username,
   }) async {
-    await _client.from('profiles').upsert({
+    final existing = await _client
+        .from('profiles')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle();
+
+    if (existing != null) return;
+
+    await _client.from('profiles').insert({
       'id': userId,
       if (email != null && email.isNotEmpty) 'email': email,
       'username': (username != null && username.trim().isNotEmpty)
