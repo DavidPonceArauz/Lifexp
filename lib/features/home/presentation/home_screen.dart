@@ -356,8 +356,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         _db.from('todos').select('deadline').eq('user_id', widget.userId)
             .neq('status', 'done').not('deadline', 'is', null)
             .gte('deadline', from).lte('deadline', to),
-        _db.from('objectives').select('deadline').eq('status', 'pending')
-            .not('deadline', 'is', null).gte('deadline', from).lte('deadline', to),
+        _db.from('objectives')
+            .select('deadline, goals!inner(user_id)')
+            .eq('status', 'pending')
+            .eq('goals.user_id', widget.userId)
+            .not('deadline', 'is', null)
+            .gte('deadline', from)
+            .lte('deadline', to),
         _db.from('calendar_events').select('id, title, date, time, color, notes, category, repeat_group_id')
             .eq('user_id', widget.userId).gte('date', from).lte('date', to).order('date'),
       ]);
@@ -752,7 +757,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           .eq('status', 'active').eq('deadline', dateKey),
       _db.from('todos').select('title').eq('user_id', widget.userId)
           .neq('status', 'done').eq('deadline', dateKey),
-      _db.from('objectives').select('title').eq('status', 'pending').eq('deadline', dateKey),
+      _db.from('objectives')
+          .select('title, goals!inner(user_id)')
+          .eq('status', 'pending')
+          .eq('goals.user_id', widget.userId)
+          .eq('deadline', dateKey),
     ]);
 
     final goals        = (results[0] as List).map((g) => g['title'] as String).toList();

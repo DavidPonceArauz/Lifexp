@@ -7,6 +7,7 @@ import '../../../core/widgets/autumn_widgets.dart';
 import '../../../core/services/sentry_service.dart';
 import '../../../core/services/analytics_service.dart'; // ← nuevo
 import '../../../main.dart' show kIsRecoveryFlow, NotificationDeepLink;
+import '../data/auth_repository.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -56,6 +57,11 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     final session = SupabaseConfig.client.auth.currentSession;
     if (session != null) {
       final user = session.user;
+      await AuthRepository().ensureProfileExists(
+        userId: user.id,
+        email: user.email,
+        username: user.userMetadata?['username'] as String?,
+      );
       await SentryService.setUser(user.id, email: user.email);
       await AnalyticsService.identify(user.id, email: user.email); // ← nuevo
 
@@ -93,6 +99,11 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
       );
       final user = response.user;
       if (user != null && mounted) {
+        await AuthRepository().ensureProfileExists(
+          userId: user.id,
+          email: user.email,
+          username: user.userMetadata?['username'] as String?,
+        );
         await SentryService.setUser(user.id, email: user.email);
         await SentryService.addBreadcrumb('Login exitoso', category: 'auth');
         await AnalyticsService.identify(user.id, email: user.email); // ← nuevo

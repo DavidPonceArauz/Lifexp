@@ -310,27 +310,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     );
     if (!confirmed || !mounted) return;
     try {
-      await Future.wait([
-        _db.from('habit_logs').delete().eq('user_id', widget.userId),
-        _db.from('goals').delete().eq('user_id', widget.userId),
-        _db.from('todos').delete().eq('user_id', widget.userId),
-        _db.from('habits').delete().eq('user_id', widget.userId),
-      ]);
-      await _db.from('profiles').delete().eq('id', widget.userId);
-      await SupabaseConfig.client.auth.admin.deleteUser(widget.userId);
+      await _db.rpc('delete_my_account');
       await SupabaseConfig.client.auth.signOut();
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
       if (mounted) Navigator.pushReplacementNamed(context, '/');
     } catch (e) {
       debugPrint('deleteAccount error: $e');
-      if (mounted)
+      if (mounted) {
         _showSnack(
           s.isEs
-              ? 'Error al borrar cuenta. Intenta de nuevo.'
-              : 'Error deleting account. Try again.',
+              ? 'Error al borrar cuenta. Verifica el RPC delete_my_account en Supabase.'
+              : 'Error deleting account. Verify the delete_my_account RPC in Supabase.',
           AutumnColors.accentRed,
         );
+      }
     }
   }
 

@@ -17,6 +17,21 @@ class AuthRepository {
     return profile['username'] as String? ?? '';
   }
 
+  Future<void> ensureProfileExists({
+    required String userId,
+    String? email,
+    String? username,
+  }) async {
+    await _client.from('profiles').upsert({
+      'id': userId,
+      if (email != null && email.isNotEmpty) 'email': email,
+      'username': (username != null && username.trim().isNotEmpty)
+          ? username.trim()
+          : (email?.split('@').first ?? 'PLAYER'),
+      'total_xp': 0,
+    });
+  }
+
   // ── Registro ───────────────────────────────────────────────
   Future<User?> register({
     required String email,
@@ -30,10 +45,7 @@ class AuthRepository {
     );
     final user = response.user;
     if (user == null) return null;
-    await _client.from('profiles').insert({
-      'id': user.id,
-      'username': username,
-    });
+    await ensureProfileExists(userId: user.id, email: email, username: username);
     return user;
   }
 
