@@ -451,18 +451,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   Future<void> _deleteCalendarEvent(int id, {int? repeatGroupId}) async {
     try {
       await NotificationService().cancelCalendarEventNotification(id);
-      await _db.from('calendar_events').delete().eq('id', id);
+      await _db.from('calendar_events').delete().eq('id', id).eq('user_id', widget.userId);
       await _loadCalendarEvents();
     } catch (e) { debugPrint('deleteCalendarEvent error: $e'); }
   }
 
   Future<void> _deleteCalendarSeries(int repeatGroupId) async {
     try {
-      final events = await _db.from('calendar_events').select('id').eq('repeat_group_id', repeatGroupId);
+      final events = await _db.from('calendar_events')
+          .select('id')
+          .eq('repeat_group_id', repeatGroupId)
+          .eq('user_id', widget.userId);
       for (final e in events as List) {
         await NotificationService().cancelCalendarEventNotification(e['id'] as int);
       }
-      await _db.from('calendar_events').delete().eq('repeat_group_id', repeatGroupId);
+      await _db.from('calendar_events')
+          .delete()
+          .eq('repeat_group_id', repeatGroupId)
+          .eq('user_id', widget.userId);
       await _loadCalendarEvents();
     } catch (e) { debugPrint('deleteCalendarSeries error: $e'); }
   }

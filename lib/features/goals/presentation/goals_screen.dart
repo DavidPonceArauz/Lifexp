@@ -7,6 +7,7 @@ import '../../../core/theme/autumn_theme.dart';
 import '../../../core/theme/language_provider.dart';
 import '../../../core/widgets/notification_config_widget.dart';
 import '../../../core/services/notification_service.dart';
+import '../data/goals_repository.dart';
 import '../domain/goal.dart';
 import '../domain/goals_state.dart';
 import 'providers/goals_provider.dart';
@@ -839,8 +840,10 @@ class _ObjectivesDialogState extends State<_ObjectivesDialog> {
   Future<void> _loadObjectives() async {
     try {
       final rows = await _db.from('objectives')
-          .select('id, goal_id, title, description, deadline, status, type, habit_id, habits(name)')
-          .eq('goal_id', widget.goal.id).order('id', ascending: true);
+          .select('id, goal_id, title, description, deadline, status, type, habit_id, habits(name), goals!inner(user_id)')
+          .eq('goal_id', widget.goal.id)
+          .eq('goals.user_id', widget.userId)
+          .order('id', ascending: true);
       final parsed = (rows as List).map((r) {
         final hd = r['habits'] as Map<String, dynamic>?;
         return Objective.fromMap({...Map<String, dynamic>.from(r), 'habit_name': hd?['name']});
@@ -862,23 +865,29 @@ class _ObjectivesDialogState extends State<_ObjectivesDialog> {
     });
     _notifyParent();
     try {
-      await _db.from('objectives').update({'status': newStatus}).eq('id', objId);
+      await _db.from('objectives')
+          .update({'status': newStatus})
+          .eq('id', objId)
+          .eq('goal_id', widget.goal.id);
       if (newStatus == 'completed') {
         final today = DateTime.now().toIso8601String().substring(0, 10);
-        final existing = await _db.from('xp_log').select('id')
-            .eq('source', 'objective_completed').eq('source_id', objId)
-            .eq('event_date', today).maybeSingle();
-        if (existing == null) {
-          final profile = await _db.from('profiles').select('total_xp').eq('id', widget.userId).single();
-          final newXp = ((profile['total_xp'] as int? ?? 0) + 30).clamp(0, 999999);
-          await _db.from('profiles').update({'total_xp': newXp}).eq('id', widget.userId);
-          await _db.from('xp_log').insert({'user_id': widget.userId, 'amount': 30,
-            'reason': 'Objetivo completado', 'source': 'objective_completed',
-            'source_id': objId, 'event_date': today});
-          if (mounted) XpToast.show(context, amount: 30);
-          final profileAfter = await _db.from('profiles').select('total_xp').eq('id', widget.userId).single();
+        await GoalsRepository().applyXp(
+          widget.userId,
+          30,
+          'Objetivo completado',
+          'objective_completed',
+          objId,
+          today,
+        );
+        if (mounted) {
+          XpToast.show(context, amount: 30);
+          final profileAfter = await _db
+              .from('profiles')
+              .select('total_xp')
+              .eq('id', widget.userId)
+              .single();
           final levelAfter = _calcLevel(profileAfter['total_xp'] as int? ?? 0);
-          if (levelAfter > _currentLevel && mounted) {
+          if (levelAfter > _currentLevel) {
             _currentLevel = levelAfter;
             CelebrationOverlay.showLevelUp(context, levelAfter);
           }
@@ -890,7 +899,12 @@ class _ObjectivesDialogState extends State<_ObjectivesDialog> {
   Future<void> _deleteObjective(int objId) async {
     setState(() => _objectives.removeWhere((o) => o.id == objId));
     _notifyParent();
-    try { await _db.from('objectives').delete().eq('id', objId); }
+    try {
+      await _db.from('objectives')
+          .delete()
+          .eq('id', objId)
+          .eq('goal_id', widget.goal.id);
+    }
     catch (e) { await _loadObjectives(); }
   }
 
@@ -903,7 +917,10 @@ class _ObjectivesDialogState extends State<_ObjectivesDialog> {
     );
     if (result == null) return;
     try {
-      await _db.from('objectives').update({'description': result}).eq('id', obj.id);
+      await _db.from('objectives')
+          .update({'description': result})
+          .eq('id', obj.id)
+          .eq('goal_id', widget.goal.id);
       setState(() {
         final idx = _objectives.indexWhere((o) => o.id == obj.id);
         if (idx != -1) _objectives[idx] = _objectives[idx].copyWith(description: result);
@@ -1100,6 +1117,12 @@ class _AddObjectiveRowState extends State<_AddObjectiveRow> {
   Future<void> _addObjective() async {
     if (_titleCtrl.text.trim().isEmpty) return;
     try {
+      final ownedGoal = await _db.from('goals').select('id')
+          .eq('id', widget.goalId)
+          .eq('user_id', widget.userId)
+          .maybeSingle();
+      if (ownedGoal == null) return;
+
       final habitId = _linkHabit ? _selectedHabitId : null;
       final result  = await _db.from('objectives').insert({
         'goal_id':     widget.goalId,

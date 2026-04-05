@@ -93,11 +93,11 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
 
     setState(() => _loading = true);
     try {
-      final response = await SupabaseConfig.client.auth.signInWithPassword(
+      final response = await AuthRepository().login(
         email: email,
         password: password,
       );
-      final user = response.user;
+      final user = response;
       if (user != null && mounted) {
         await AuthRepository().ensureProfileExists(
           userId: user.id,

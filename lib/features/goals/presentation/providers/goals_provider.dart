@@ -130,7 +130,7 @@ class GoalsNotifier extends StateNotifier<GoalsState> {
     final newAll = state.allGoals.where((g) => g.id != goalId).toList();
     state = state.copyWith(allGoals: newAll, filteredGoals: _applyFilters(newAll));
     try {
-      await _repo.deleteGoal(goalId);
+      await _repo.deleteGoal(_userId, goalId);
     } catch (e) {
       state = state.copyWith(allGoals: prev, filteredGoals: _applyFilters(prev), error: e.toString());
     }

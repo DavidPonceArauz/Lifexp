@@ -60,7 +60,11 @@ class GoalsRepository {
           .lt('deadline', today);
 
       for (final g in overdue) {
-        await _db.from('goals').update({'status': 'failed'}).eq('id', g['id']);
+        await _db
+            .from('goals')
+            .update({'status': 'failed'})
+            .eq('id', g['id'])
+            .eq('user_id', userId);
         await applyXp(userId, -50, 'Meta vencida', 'goal_failed', g['id'] as int, today);
       }
     } catch (e) {
@@ -91,18 +95,27 @@ class GoalsRepository {
     return Goal.fromMap(result);
   }
 
-  Future<void> deleteGoal(int goalId) async {
+  Future<void> deleteGoal(String userId, int goalId) async {
+    final ownedGoal = await _db
+        .from('goals')
+        .select('id')
+        .eq('id', goalId)
+        .eq('user_id', userId)
+        .maybeSingle();
+    if (ownedGoal == null) return;
+
     await _db.from('objectives').delete().eq('goal_id', goalId);
-    await _db.from('goals').delete().eq('id', goalId);
+    await _db.from('goals').delete().eq('id', goalId).eq('user_id', userId);
   }
 
   // ── Objectives ────────────────────────────────────────────────────────────
 
-  Future<List<Objective>> loadObjectives(int goalId) async {
+  Future<List<Objective>> loadObjectives(String userId, int goalId) async {
     final rows = await _db
         .from('objectives')
-        .select('id, goal_id, title, deadline, status, type, habit_id, habits(name)')
+        .select('id, goal_id, title, deadline, status, type, habit_id, habits(name), goals!inner(user_id)')
         .eq('goal_id', goalId)
+        .eq('goals.user_id', userId)
         .order('id', ascending: true);
 
     return (rows as List).map((r) {
@@ -128,12 +141,34 @@ class GoalsRepository {
     return result['id'] as int;
   }
 
-  Future<void> toggleObjective(int objId, String newStatus) async {
-    await _db.from('objectives').update({'status': newStatus}).eq('id', objId);
+  Future<void> toggleObjective(String userId, int goalId, int objId, String newStatus) async {
+    final ownedObjective = await _db
+        .from('objectives')
+        .select('id, goals!inner(user_id)')
+        .eq('id', objId)
+        .eq('goal_id', goalId)
+        .eq('goals.user_id', userId)
+        .maybeSingle();
+    if (ownedObjective == null) return;
+
+    await _db
+        .from('objectives')
+        .update({'status': newStatus})
+        .eq('id', objId)
+        .eq('goal_id', goalId);
   }
 
-  Future<void> deleteObjective(int objId) async {
-    await _db.from('objectives').delete().eq('id', objId);
+  Future<void> deleteObjective(String userId, int goalId, int objId) async {
+    final ownedObjective = await _db
+        .from('objectives')
+        .select('id, goals!inner(user_id)')
+        .eq('id', objId)
+        .eq('goal_id', goalId)
+        .eq('goals.user_id', userId)
+        .maybeSingle();
+    if (ownedObjective == null) return;
+
+    await _db.from('objectives').delete().eq('id', objId).eq('goal_id', goalId);
   }
 
   Future<List<Map<String, dynamic>>> loadHabits(String userId) async {

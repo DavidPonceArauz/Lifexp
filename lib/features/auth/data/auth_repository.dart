@@ -40,6 +40,28 @@ class AuthRepository {
     });
   }
 
+  Future<bool> updateUsername({
+    required String userId,
+    required String username,
+  }) async {
+    final trimmed = username.trim();
+    if (trimmed.isEmpty) return false;
+
+    final existing = await _client
+        .from('profiles')
+        .select('id')
+        .eq('username', trimmed)
+        .neq('id', userId)
+        .maybeSingle();
+    if (existing != null) return false;
+
+    await _client
+        .from('profiles')
+        .update({'username': trimmed})
+        .eq('id', userId);
+    return true;
+  }
+
   // ── Registro ───────────────────────────────────────────────
   Future<User?> register({
     required String email,

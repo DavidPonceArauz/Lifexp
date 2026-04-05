@@ -39,7 +39,7 @@ class TodosRepository {
     return Todo.fromMap(result);
   }
 
-  Future<void> updateTodo(int id, {
+  Future<void> updateTodo(String userId, int id, {
     required String title,
     required String description,
     required int priority,
@@ -52,14 +52,14 @@ class TodosRepository {
       'priority':    priority,
       'deadline':    deadline,
       'category':    category,
-    }).eq('id', id);
+    }).eq('id', id).eq('user_id', userId);
   }
 
-  Future<void> updateStatus(int id, String status) async {
-    await _db.from('todos').update({'status': status}).eq('id', id);
+  Future<void> updateStatus(String userId, int id, String status) async {
+    await _db.from('todos').update({'status': status}).eq('id', id).eq('user_id', userId);
   }
 
-  Future<void> deleteTodo(int id) async {
-    await _db.from('todos').delete().eq('id', id);
+  Future<void> deleteTodo(String userId, int id) async {
+    await _db.from('todos').delete().eq('id', id).eq('user_id', userId);
   }
 }

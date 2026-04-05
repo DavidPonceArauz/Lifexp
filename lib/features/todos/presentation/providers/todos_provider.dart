@@ -159,7 +159,7 @@ class TodosNotifier extends StateNotifier<TodosState> {
     );
 
     try {
-      await _repo.updateTodo(id, title: title, description: description,
+      await _repo.updateTodo(_userId, id, title: title, description: description,
           priority: priority, deadline: deadline, category: category);
     } catch (e) {
       await load();
@@ -183,7 +183,7 @@ class TodosNotifier extends StateNotifier<TodosState> {
     );
 
     try {
-      await _repo.updateStatus(id, newStatus);
+      await _repo.updateStatus(_userId, id, newStatus);
     } catch (e) {
       final reverted = state.allTodos.map((t) =>
       t.id == id ? t.copyWith(status: prev.status) : t).toList();
@@ -205,7 +205,7 @@ class TodosNotifier extends StateNotifier<TodosState> {
       filteredTodos: _applyFilters(newAll),
     );
     try {
-      await _repo.deleteTodo(id);
+      await _repo.deleteTodo(_userId, id);
     } catch (e) {
       state = state.copyWith(
         allTodos:      prevAll,

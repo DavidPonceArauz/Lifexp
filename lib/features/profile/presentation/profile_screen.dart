@@ -278,6 +278,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     );
     if (!confirmed || !mounted) return;
     try {
+      await _db.from('xp_log').delete().eq('user_id', widget.userId);
       await _db
           .from('profiles')
           .update({'total_xp': 0}).eq('id', widget.userId);

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../core/supabase/supabase_client.dart';
+import '../data/auth_repository.dart';
 import '../../../core/theme/autumn_theme.dart';
 
 // ══════════════════════════════════════════════════════════════════
@@ -104,12 +104,21 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     try {
       final name = _nameCtrl.text.trim();
       if (name != widget.initialUsername) {
-        await SupabaseConfig.client
-            .from('profiles')
-            .update({'username': name}).eq('id', widget.userId);
+        final updated = await AuthRepository().updateUsername(
+          userId: widget.userId,
+          username: name,
+        );
+        if (!updated) {
+          if (mounted) {
+            setState(() => _nameError = 'Ese nombre ya esta en uso');
+          }
+          return;
+        }
       }
     } catch (e) {
       debugPrint('onboarding save: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
     if (mounted) {
       Navigator.pushReplacementNamed(context, '/home',
