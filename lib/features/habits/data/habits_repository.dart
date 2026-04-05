@@ -1,7 +1,3 @@
-// ===========================
-// 🗄️ HABITS REPOSITORY
-// ===========================
-
 import 'package:flutter/foundation.dart';
 import '../domain/habit.dart';
 import '../domain/habit_objective_eval.dart';
@@ -10,42 +6,38 @@ import '../../../core/supabase/supabase_client.dart';
 class HabitsRepository {
   final _db = SupabaseConfig.client;
 
-  // ── Carga principal (RPC batch) ───────────────────────────────────────────
-
   Future<({
-  List<Habit> habits,
-  List<HabitStreak> streakData,
-  Map<int, bool> completedMap,
-  int freezes,
+    List<Habit> habits,
+    List<HabitStreak> streakData,
+    Map<int, bool> completedMap,
+    int freezes,
   })> loadScreenData(String userId, DateTime date) async {
     final dateStr = date.toIso8601String().substring(0, 10);
 
-    // Una sola llamada que trae hábitos, completados, freezes
     final result = await _db.rpc('get_habits_screen_data', params: {
       'p_user_id': userId,
       'p_date': dateStr,
     });
 
     final habitsRaw = List<Map<String, dynamic>>.from(result['habits'] ?? []);
-    final streakDataRaw = List<Map<String, dynamic>>.from(result['streak_data'] ?? []);
-    final completedMapRaw = Map<String, dynamic>.from(result['completed_map'] ?? {});
+    final streakDataRaw =
+        List<Map<String, dynamic>>.from(result['streak_data'] ?? []);
+    final completedMapRaw =
+        Map<String, dynamic>.from(result['completed_map'] ?? {});
     final freezes = result['freezes'] as int? ?? 0;
 
     final habits = habitsRaw.map(Habit.fromMap).toList();
 
-    final Map<int, bool> completedMap = {
-      for (final h in habits)
-        h.id: completedMapRaw[h.id.toString()] == true,
+    final completedMap = <int, bool>{
+      for (final h in habits) h.id: completedMapRaw[h.id.toString()] == true,
     };
 
-    // ✅ Una sola llamada SQL para TODOS los streaks
     final streakRows = await _db.rpc('get_habit_streaks', params: {
       'p_user_id': userId,
     }) as List;
 
     final streakByHabitId = <int, Map<String, dynamic>>{
-      for (final r in streakRows)
-        r['out_habit_id'] as int: r as Map<String, dynamic>,
+      for (final r in streakRows) r['out_habit_id'] as int: r as Map<String, dynamic>,
     };
 
     final streakData = streakDataRaw.map((s) {
@@ -56,8 +48,8 @@ class HabitsRepository {
       final statusKey = isCompleted
           ? HabitStatusKey.done
           : isFrozen
-          ? HabitStatusKey.frozen
-          : HabitStatusKey.pending;
+              ? HabitStatusKey.frozen
+              : HabitStatusKey.pending;
 
       final streakRow = streakByHabitId[hid];
       final streak = streakRow?['out_streak'] as int? ?? 0;
@@ -73,14 +65,12 @@ class HabitsRepository {
     }).toList();
 
     return (
-    habits: habits,
-    streakData: streakData,
-    completedMap: completedMap,
-    freezes: freezes,
+      habits: habits,
+      streakData: streakData,
+      completedMap: completedMap,
+      freezes: freezes,
     );
   }
-
-  // ── Toggle completado ─────────────────────────────────────────────────────
 
   Future<void> toggleCompleted(int habitId, String userId, String dateStr) async {
     await _db.rpc('toggle_habit', params: {
@@ -90,21 +80,21 @@ class HabitsRepository {
     });
   }
 
-  // ── Crear hábito ──────────────────────────────────────────────────────────
-
   Future<Habit> createHabit(String userId, String name, String category) async {
     final dateStr = DateTime.now().toIso8601String().substring(0, 10);
-    final result = await _db.from('habits').insert({
-      'user_id': userId,
-      'name': name.trim(),
-      'category': category.trim(),
-      'active': true,
-      'created_at': dateStr,
-    }).select('id, user_id, name, category, active, created_at').single();
+    final result = await _db
+        .from('habits')
+        .insert({
+          'user_id': userId,
+          'name': name.trim(),
+          'category': category.trim(),
+          'active': true,
+          'created_at': dateStr,
+        })
+        .select('id, user_id, name, category, active, created_at')
+        .single();
     return Habit.fromMap(result);
   }
-
-  // ── Retirar hábito ────────────────────────────────────────────────────────
 
   Future<void> retireHabit(int habitId) async {
     await _db.from('habits').update({
@@ -112,8 +102,6 @@ class HabitsRepository {
       'deleted_at': DateTime.now().toIso8601String().substring(0, 10),
     }).eq('id', habitId);
   }
-
-  // ── Freezes ───────────────────────────────────────────────────────────────
 
   Future<int> getUserFreezes(String userId) async {
     try {
@@ -123,7 +111,9 @@ class HabitsRepository {
           .eq('user_id', userId)
           .maybeSingle();
       if (result == null) {
-        await _db.from('habit_freezes').insert({'user_id': userId, 'freezes': 0});
+        await _db
+            .from('habit_freezes')
+            .insert({'user_id': userId, 'freezes': 0});
         return 0;
       }
       return result['freezes'] as int? ?? 0;
@@ -162,8 +152,6 @@ class HabitsRepository {
     }
   }
 
-  // ── Hábitos faltantes ayer ────────────────────────────────────────────────
-
   Future<List<({int id, String name})>> getMissingYesterday(String userId) async {
     try {
       final yesterday = DateTime.now()
@@ -171,7 +159,6 @@ class HabitsRepository {
           .toIso8601String()
           .substring(0, 10);
 
-      // 1 query — hábitos activos creados antes de ayer
       final habits = await _db
           .from('habits')
           .select('id, name')
@@ -183,7 +170,6 @@ class HabitsRepository {
 
       final habitIds = habits.map((h) => h['id'] as int).toList();
 
-      // 1 query — logs completados ayer
       final logs = await _db
           .from('habit_logs')
           .select('habit_id')
@@ -191,22 +177,20 @@ class HabitsRepository {
           .eq('date', yesterday)
           .eq('completed', true);
 
-      // 1 query — freezes de ayer
       final freezes = await _db
           .from('habit_freeze_days')
           .select('habit_id')
           .inFilter('habit_id', habitIds)
           .eq('date', yesterday);
 
-      // Filtrar en Dart
       final completedIds = logs.map((l) => l['habit_id'] as int).toSet();
-      final frozenIds    = freezes.map((f) => f['habit_id'] as int).toSet();
+      final frozenIds = freezes.map((f) => f['habit_id'] as int).toSet();
 
       return habits
           .where((h) {
-        final hid = h['id'] as int;
-        return !completedIds.contains(hid) && !frozenIds.contains(hid);
-      })
+            final hid = h['id'] as int;
+            return !completedIds.contains(hid) && !frozenIds.contains(hid);
+          })
           .map((h) => (id: h['id'] as int, name: h['name'] as String))
           .toList();
     } catch (_) {
@@ -214,16 +198,14 @@ class HabitsRepository {
     }
   }
 
-  // ── XP ────────────────────────────────────────────────────────────────────
-
   Future<void> applyXp(
-      String userId,
-      int amount,
-      String reason,
-      String source,
-      int sourceId,
-      String eventDate,
-      ) async {
+    String userId,
+    int amount,
+    String reason,
+    String source,
+    int sourceId,
+    String eventDate,
+  ) async {
     try {
       final existing = await _db
           .from('xp_log')
@@ -263,7 +245,6 @@ class HabitsRepository {
           .toIso8601String()
           .substring(0, 10);
 
-      // 1 query — todos los hábitos activos creados antes de ayer
       final habits = await _db
           .from('habits')
           .select('id, name')
@@ -275,7 +256,6 @@ class HabitsRepository {
 
       final habitIds = habits.map((h) => h['id'] as int).toList();
 
-      // 1 query — todos los logs de ayer para estos hábitos
       final logs = await _db
           .from('habit_logs')
           .select('habit_id')
@@ -283,22 +263,26 @@ class HabitsRepository {
           .eq('date', yesterday)
           .eq('completed', true);
 
-      // 1 query — todos los freezes de ayer para estos hábitos
       final freezes = await _db
           .from('habit_freeze_days')
           .select('habit_id')
           .inFilter('habit_id', habitIds)
           .eq('date', yesterday);
 
-      // Filtrar en Dart — sin más queries
       final completedIds = logs.map((l) => l['habit_id'] as int).toSet();
-      final frozenIds    = freezes.map((f) => f['habit_id'] as int).toSet();
+      final frozenIds = freezes.map((f) => f['habit_id'] as int).toSet();
 
       for (final h in habits) {
         final hid = h['id'] as int;
         if (!completedIds.contains(hid) && !frozenIds.contains(hid)) {
-          await applyXp(userId, -15, 'Hábito no registrado: ${h['name']}',
-              'habit_missed', hid, yesterday);
+          await applyXp(
+            userId,
+            -15,
+            'Hábito no registrado: ${h['name']}',
+            'habit_missed',
+            hid,
+            yesterday,
+          );
         }
       }
     } catch (e) {
@@ -306,13 +290,10 @@ class HabitsRepository {
     }
   }
 
-  // ── Evaluar objetivos de hábito vencidos ──────────────────────────────────
-
   Future<void> checkOverdueHabitObjectives(String userId) async {
     try {
       final today = DateTime.now().toIso8601String().substring(0, 10);
 
-      // Traer todos los objetivos de tipo hábito pendientes con deadline vencido
       final objectives = await _db
           .from('objectives')
           .select('id, habit_id, created_at, deadline, goals!inner(user_id)')
@@ -324,7 +305,6 @@ class HabitsRepository {
 
       if ((objectives as List).isEmpty) return;
 
-      // Verificar que el hábito pertenece al usuario
       final habitIds = objectives
           .map((o) => o['habit_id'] as int)
           .toSet()
@@ -341,54 +321,48 @@ class HabitsRepository {
           .toSet();
 
       for (final obj in objectives) {
-        final habitId  = obj['habit_id'] as int;
-
-        // Solo procesar hábitos del usuario actual
+        final habitId = obj['habit_id'] as int;
         if (!userHabitIds.contains(habitId)) continue;
 
-        final objId        = obj['id'] as int;
-        final deadlineRaw  = obj['deadline'];
+        final objId = obj['id'] as int;
+        final deadlineRaw = obj['deadline'];
         final createdAtRaw = obj['created_at'] as String;
 
-        // Saltar si deadline es null o vacío
         if (deadlineRaw == null || deadlineRaw.toString().isEmpty) continue;
         final deadline = deadlineRaw.toString();
 
-        // Convertir created_at UTC a fecha local
-        final createdAtUtc   = DateTime.parse(createdAtRaw);
-        final createdAtLocal = createdAtUtc.toLocal();
-        final startDate      = DateTime(
-          createdAtLocal.year,
-          createdAtLocal.month,
-          createdAtLocal.day,
-        ).toIso8601String().substring(0, 10);
+        final baseEvaluation = evaluateHabitObjectiveProgress(
+          createdAtRaw: createdAtRaw,
+          endDate: deadline,
+          today: today,
+          completedDays: 0,
+        );
+        if (baseEvaluation == null) continue;
 
-        // Calcular período completo
-        final start     = DateTime.parse(startDate);
-        final end       = DateTime.parse(deadline);
-        final totalDays = end.difference(start).inDays + 1;
-        if (totalDays <= 0) continue;
-
-        // checkOverdueHabitObjectives solo se llama cuando deadline ya venció
-        // así que siempre evaluamos sobre el total de días
         final logs = await _db
             .from('habit_logs')
             .select('date')
             .eq('habit_id', habitId)
             .eq('user_id', userId)
             .eq('completed', true)
-            .gte('date', startDate)
+            .gte('date', baseEvaluation.startDate)
             .lte('date', deadline);
 
         final completedDays = (logs as List).length;
-        final ratio         = completedDays / totalDays;
+        final evaluation = evaluateHabitObjectiveProgress(
+          createdAtRaw: createdAtRaw,
+          endDate: deadline,
+          today: today,
+          completedDays: completedDays,
+        );
+        if (evaluation == null) continue;
 
         debugPrint('checkOverdueHabitObjectives: obj=$objId habit=$habitId '
-            'start=$startDate end=$deadline '
-            'completed=$completedDays total=$totalDays '
-            'ratio=${(ratio * 100).round()}%');
+            'start=${evaluation.startDate} end=$deadline '
+            'completed=$completedDays total=${evaluation.totalDays} '
+            'ratio=${(evaluation.ratio * 100).round()}%');
 
-        if (ratio >= 0.80) {
+        if (evaluation.ratio >= 0.80) {
           await _db
               .from('objectives')
               .update({'status': 'completed'})
@@ -411,7 +385,7 @@ class HabitsRepository {
           await applyXp(
             userId,
             -80,
-            'Objetivo de hábito fallido (${(ratio * 100).round()}% completado)',
+            'Objetivo de hábito fallido (${(evaluation.ratio * 100).round()}% completado)',
             'objective_habit_failed',
             objId,
             today,
