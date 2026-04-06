@@ -17,6 +17,8 @@ class _S {
   const _S(this.lang);
   bool get isEs => lang == AppLanguage.es;
 
+  String get sectionXpHistory =>
+      isEs ? '⚡  HISTORIAL XP' : '⚡  XP HISTORY';
   String get sectionAchievements => isEs ? '🏅  LOGROS' : '🏅  ACHIEVEMENTS';
   String get sectionStats => isEs ? '📊  ESTADÍSTICAS' : '📊  STATISTICS';
   String get sectionCharts => isEs ? '📈  GRÁFICAS' : '📈  CHARTS';
@@ -59,6 +61,10 @@ class _S {
   String get logout2 => isEs ? 'SALIR' : 'LEAVE';
   String get loadingProfile =>
       isEs ? 'CARGANDO PERFIL...' : 'LOADING PROFILE...';
+  String get noXpHistory =>
+      isEs ? 'Todavia no hay movimientos de XP' : 'No XP activity yet';
+  String get recentXpActivity =>
+      isEs ? 'Ultimos movimientos registrados' : 'Latest recorded activity';
 
   String levelTitle(int l) {
     if (l >= 11) return isEs ? 'ÁRBOL LEGENDARIO' : 'LEGENDARY TREE';
@@ -66,6 +72,18 @@ class _S {
     if (l >= 3) return isEs ? 'ÁRBOL EN CRECIMIENTO' : 'GROWING TREE';
     return isEs ? 'ÁRBOL JOVEN' : 'YOUNG TREE';
   }
+}
+
+class _XpHistoryEntry {
+  final int amount;
+  final String reason;
+  final String eventDate;
+
+  const _XpHistoryEntry({
+    required this.amount,
+    required this.reason,
+    required this.eventDate,
+  });
 }
 
 // ── Main widget ───────────────────────────────────────────────────────────────
@@ -95,6 +113,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   int _todosCompleted = 0;
   int _maxStreak = 0;
   int _totalDaysActive = 0;
+  List<_XpHistoryEntry> _xpHistory = const [];
 
   late AnimationController _entryCtrl;
   late AnimationController _xpBarCtrl;
@@ -121,7 +140,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   }
 
   Future<void> _loadAll() async {
-    await Future.wait([_loadProfile(), _loadStats()]);
+    await Future.wait([_loadProfile(), _loadStats(), _loadXpHistory()]);
     if (mounted) {
       setState(() => _loading = false);
       _xpBarCtrl.forward();
@@ -211,6 +230,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         });
     } catch (e) {
       debugPrint('loadStats error: $e');
+    }
+  }
+
+  Future<void> _loadXpHistory() async {
+    try {
+      final rows = await _db
+          .from('xp_log')
+          .select('amount, reason, event_date')
+          .eq('user_id', widget.userId)
+          .order('event_date', ascending: false)
+          .limit(12);
+
+      if (mounted) {
+        setState(() {
+          _xpHistory = (rows as List)
+              .map(
+                (row) => _XpHistoryEntry(
+                  amount: row['amount'] as int? ?? 0,
+                  reason: row['reason'] as String? ?? '',
+                  eventDate: row['event_date'] as String? ?? '',
+                ),
+              )
+              .toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('loadXpHistory error: $e');
     }
   }
 
@@ -489,18 +535,100 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     _showLegalSheet(
         s.privacy,
         s.isEs
-            ? 'POLÍTICA DE PRIVACIDAD\n\nVersión 1.0 — Enero 2025\n\n'
-                '1. DATOS QUE RECOPILAMOS\nEmail, nombre de usuario, datos de hábitos, metas y tareas.\n\n'
-                '2. USO DE LOS DATOS\nÚnicamente para hacer funcionar la app. No vendemos ni compartimos tus datos.\n\n'
-                '3. ALMACENAMIENTO\nTus datos se guardan en servidores seguros de Supabase (supabase.com).\n\n'
-                '4. TUS DERECHOS\nPodés solicitar la eliminación de tu cuenta en cualquier momento desde la app.\n\n'
-                '5. CONTACTO\nsupport@lifexp.app\n\n[Texto placeholder — reemplazar con política legal definitiva]'
-            : 'PRIVACY POLICY\n\nVersion 1.0 — January 2025\n\n'
-                '1. DATA WE COLLECT\nEmail, username, habit/goal/task data you enter.\n\n'
-                '2. USE OF DATA\nOnly to run the app. We never sell or share your data.\n\n'
-                '3. STORAGE\nYour data is stored on secure Supabase servers (supabase.com).\n\n'
-                '4. YOUR RIGHTS\nYou may request deletion of your account at any time from the app.\n\n'
-                '5. CONTACT\nsupport@lifexp.app\n\n[Placeholder — replace with final legal policy]');
+            ? 'POLITICA DE PRIVACIDAD\n\n'
+                'Ultima actualizacion: 6 de abril de 2026\n\n'
+                '1. QUIENES SOMOS\n'
+                'LifeXP es una aplicacion de productividad y seguimiento personal orientada a habitos, metas, tareas, progreso y estadisticas. Si tienes preguntas sobre esta politica, puedes escribir a support@lifexp.app.\n\n'
+                '2. DATOS QUE RECOPILAMOS\n'
+                'Podemos recopilar y tratar las siguientes categorias de datos:\n'
+                '- Datos de cuenta: correo electronico, identificador de usuario y nombre de usuario.\n'
+                '- Contenido generado por ti: habitos, registros de habitos, metas, objetivos, tareas, eventos de calendario, descripciones y ajustes dentro de la app.\n'
+                '- Datos de progreso: XP, nivel, rachas, historial de XP, estadisticas y logros generados a partir de tu uso.\n'
+                '- Datos tecnicos y de diagnostico: informacion basica del dispositivo, eventos de errores y fallos, y datos de uso anonimizados o seudonimizados para analitica y mejora del servicio.\n'
+                '- Datos de notificaciones: permisos concedidos y programacion de recordatorios locales.\n\n'
+                '3. COMO OBTENEMOS LOS DATOS\n'
+                'Obtenemos los datos directamente de ti cuando creas una cuenta, completas habitos, registras metas o tareas, editas tu perfil, activas notificaciones o utilizas funciones de la aplicacion.\n\n'
+                '4. PARA QUE USAMOS LOS DATOS\n'
+                'Usamos tus datos para:\n'
+                '- Crear y administrar tu cuenta.\n'
+                '- Guardar y sincronizar tu informacion entre dispositivos.\n'
+                '- Mostrar progreso, estadisticas, graficas, nivel, XP, rachas y widgets.\n'
+                '- Enviar o programar recordatorios y notificaciones solicitadas por ti.\n'
+                '- Detectar errores, prevenir abuso y mejorar estabilidad, rendimiento y experiencia de usuario.\n'
+                '- Analizar el uso general de la app para priorizar mejoras de producto.\n\n'
+                '5. BASES DEL TRATAMIENTO\n'
+                'Tratamos tus datos para ejecutar el servicio que solicitas al usar LifeXP, cumplir nuestras obligaciones legales cuando aplique, proteger la seguridad de la plataforma y, en algunos casos, por interes legitimo para analitica tecnica y mejora del producto.\n\n'
+                '6. SERVICIOS DE TERCEROS\n'
+                'LifeXP utiliza proveedores externos para operar el servicio, entre ellos:\n'
+                '- Supabase, para autenticacion, base de datos y almacenamiento de informacion de cuenta y contenido.\n'
+                '- Sentry, para registro y monitoreo de errores y fallos.\n'
+                '- PostHog, para analitica de uso del producto.\n'
+                'Estos proveedores procesan datos segun nuestras instrucciones o sus propias condiciones y politicas de privacidad aplicables.\n\n'
+                '7. NO VENDEMOS TUS DATOS\n'
+                'No vendemos tus datos personales. Tampoco compartimos tus datos con terceros para publicidad conductual de terceros.\n\n'
+                '8. CONSERVACION DE LOS DATOS\n'
+                'Conservamos tu informacion mientras tu cuenta este activa o mientras sea necesario para prestarte el servicio, resolver disputas, cumplir obligaciones legales, hacer cumplir nuestros acuerdos y mantener registros tecnicos razonables de seguridad e integridad.\n\n'
+                '9. ELIMINACION DE CUENTA Y DATOS\n'
+                'Puedes solicitar la eliminacion permanente de tu cuenta desde la propia app. Al confirmar esta accion, eliminaremos la informacion asociada a tu cuenta de acuerdo con el flujo tecnico disponible en LifeXP, salvo datos que debamos conservar por obligaciones legales, seguridad o prevencion de fraude.\n\n'
+                '10. TUS DERECHOS\n'
+                'Segun tu jurisdiccion, puedes tener derecho a acceder, corregir, actualizar, eliminar o limitar el tratamiento de tus datos personales. Tambien puedes solicitar informacion sobre el tratamiento escribiendo a support@lifexp.app.\n\n'
+                '11. SEGURIDAD\n'
+                'Aplicamos medidas tecnicas y organizativas razonables para proteger tus datos. Sin embargo, ningun sistema es completamente infalible y no podemos garantizar seguridad absoluta.\n\n'
+                '12. MENORES DE EDAD\n'
+                'LifeXP no esta dirigida a menores de 13 anos, ni a una edad superior si asi lo exige la ley local. Si detectamos que se ha recopilado informacion personal de un menor sin autorizacion valida, podremos eliminarla.\n\n'
+                '13. TRANSFERENCIAS INTERNACIONALES\n'
+                'Tus datos pueden tratarse en paises distintos al tuyo cuando nuestros proveedores operen infraestructura internacional. En esos casos procuramos utilizar salvaguardas razonables y proveedores reconocidos.\n\n'
+                '14. CAMBIOS A ESTA POLITICA\n'
+                'Podemos actualizar esta politica ocasionalmente. Cuando los cambios sean relevantes, publicaremos la version actualizada en la app y, cuando corresponda, te lo notificaremos por medios razonables.\n\n'
+                '15. CONTACTO\n'
+                'Para soporte, consultas de privacidad o ejercicio de derechos: support@lifexp.app'
+            : 'PRIVACY POLICY\n\n'
+                'Last updated: April 6, 2026\n\n'
+                '1. WHO WE ARE\n'
+                'LifeXP is a productivity and personal tracking app focused on habits, goals, tasks, progress, and statistics. If you have questions about this policy, you can contact us at support@lifexp.app.\n\n'
+                '2. DATA WE COLLECT\n'
+                'We may collect and process the following categories of data:\n'
+                '- Account data: email address, user identifier, and username.\n'
+                '- User-generated content: habits, habit logs, goals, objectives, tasks, calendar events, descriptions, and in-app settings.\n'
+                '- Progress data: XP, level, streaks, XP history, statistics, and achievements generated from your use.\n'
+                '- Technical and diagnostics data: basic device information, crash and error events, and anonymized or pseudonymized usage data for analytics and product improvement.\n'
+                '- Notification data: granted permissions and locally scheduled reminders.\n\n'
+                '3. HOW WE COLLECT DATA\n'
+                'We collect data directly from you when you create an account, complete habits, create goals or tasks, edit your profile, enable notifications, or otherwise use the app.\n\n'
+                '4. HOW WE USE DATA\n'
+                'We use your data to:\n'
+                '- Create and manage your account.\n'
+                '- Store and sync your information across devices.\n'
+                '- Display progress, statistics, charts, level, XP, streaks, and widgets.\n'
+                '- Send or schedule reminders and notifications requested by you.\n'
+                '- Detect errors, prevent abuse, and improve stability, performance, and user experience.\n'
+                '- Analyze general product usage in order to prioritize improvements.\n\n'
+                '5. LEGAL BASIS\n'
+                'We process your data to provide the service you request when using LifeXP, to comply with legal obligations where applicable, to protect platform security, and in some cases for legitimate interests related to technical analytics and product improvement.\n\n'
+                '6. THIRD-PARTY SERVICES\n'
+                'LifeXP uses third-party providers to operate the service, including:\n'
+                '- Supabase, for authentication, database, and account/content storage.\n'
+                '- Sentry, for crash and error monitoring.\n'
+                '- PostHog, for product analytics.\n'
+                'These providers process data under our instructions or under their own applicable terms and privacy policies.\n\n'
+                '7. WE DO NOT SELL YOUR DATA\n'
+                'We do not sell your personal data. We also do not share your data for third-party behavioral advertising.\n\n'
+                '8. DATA RETENTION\n'
+                'We retain your information while your account is active or as needed to provide the service, resolve disputes, comply with legal obligations, enforce our agreements, and maintain reasonable technical records for security and integrity.\n\n'
+                '9. ACCOUNT AND DATA DELETION\n'
+                'You can request permanent deletion of your account from within the app. Once confirmed, we will delete the information associated with your account according to the technical deletion flow available in LifeXP, except for data we must retain for legal, security, or fraud-prevention purposes.\n\n'
+                '10. YOUR RIGHTS\n'
+                'Depending on your jurisdiction, you may have the right to access, correct, update, delete, or restrict the processing of your personal data. You may also request information about our processing by contacting support@lifexp.app.\n\n'
+                '11. SECURITY\n'
+                'We apply reasonable technical and organizational measures to protect your data. However, no system is completely secure, and we cannot guarantee absolute security.\n\n'
+                '12. CHILDREN\n'
+                'LifeXP is not directed to children under 13, or any higher age required by local law. If we learn that personal data from a child has been collected without valid authorization, we may delete it.\n\n'
+                '13. INTERNATIONAL TRANSFERS\n'
+                'Your data may be processed in countries other than your own when our providers operate international infrastructure. In those cases, we seek to rely on reasonable safeguards and recognized providers.\n\n'
+                '14. CHANGES TO THIS POLICY\n'
+                'We may update this policy from time to time. When changes are material, we will publish the updated version in the app and, where appropriate, notify you through reasonable means.\n\n'
+                '15. CONTACT\n'
+                'For support, privacy questions, or rights requests: support@lifexp.app');
   }
 
   void _openTerms() {
@@ -508,18 +636,86 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     _showLegalSheet(
         s.terms,
         s.isEs
-            ? 'TÉRMINOS DE USO\n\nVersión 1.0 — Enero 2025\n\n'
-                '1. USO PERMITIDO\nLifeXP es para uso personal. No podés usar la app para actividades ilegales.\n\n'
-                '2. CUENTA\nSos responsable de mantener la seguridad de tu cuenta.\n\n'
-                '3. PROPIEDAD INTELECTUAL\nTodo el contenido y código de LifeXP es propiedad de sus desarrolladores.\n\n'
-                '4. LIMITACIÓN DE RESPONSABILIDAD\nLa app se provee "tal cual".\n\n'
-                '[Texto placeholder — reemplazar con términos legales definitivos]'
-            : 'TERMS OF USE\n\nVersion 1.0 — January 2025\n\n'
-                '1. PERMITTED USE\nLifeXP is for personal use only.\n\n'
-                '2. ACCOUNT\nYou are responsible for keeping your account secure.\n\n'
-                '3. INTELLECTUAL PROPERTY\nAll LifeXP content and code is owned by its developers.\n\n'
-                '4. LIABILITY\nThe app is provided "as is".\n\n'
-                '[Placeholder — replace with final legal terms]');
+            ? 'TERMINOS DE USO\n\n'
+                'Ultima actualizacion: 6 de abril de 2026\n\n'
+                '1. ACEPTACION\n'
+                'Al crear una cuenta, acceder o usar LifeXP, aceptas estos Terminos de Uso. Si no estas de acuerdo, no debes utilizar la aplicacion.\n\n'
+                '2. SERVICIO\n'
+                'LifeXP ofrece herramientas de organizacion personal, seguimiento de habitos, metas, tareas, progreso, recordatorios y estadisticas. Podemos modificar, mejorar, suspender o eliminar funciones en cualquier momento.\n\n'
+                '3. ELEGIBILIDAD Y USO PERSONAL\n'
+                'Debes tener capacidad legal suficiente para aceptar estos terminos segun la ley aplicable. La app esta destinada a uso personal y no comercial, salvo autorizacion expresa por escrito.\n\n'
+                '4. CUENTA Y SEGURIDAD\n'
+                'Eres responsable de la actividad realizada desde tu cuenta y de mantener la confidencialidad de tus credenciales. Debes proporcionarnos informacion razonablemente precisa y actualizada.\n\n'
+                '5. CONDUCTA PROHIBIDA\n'
+                'No puedes usar LifeXP para:\n'
+                '- Violaciones de ley o derechos de terceros.\n'
+                '- Intentos de acceso no autorizado, interferencia, scraping, abuso tecnico o fraude.\n'
+                '- Distribuir malware, contenido danino o material que vulnere derechos de propiedad intelectual o privacidad.\n'
+                '- Usar la app de forma que perjudique la estabilidad, seguridad o disponibilidad del servicio.\n\n'
+                '6. TU CONTENIDO\n'
+                'Conservas la titularidad sobre el contenido que ingresas en LifeXP. Nos otorgas una licencia limitada, no exclusiva y necesaria para alojar, procesar, sincronizar, mostrar y operar ese contenido con el fin de prestarte el servicio.\n\n'
+                '7. PROPIEDAD INTELECTUAL DE LIFEXP\n'
+                'La aplicacion, su marca, interfaz, diseno, codigo, logica de producto, textos, graficos y demas elementos, salvo contenido tuyo y componentes de terceros, pertenecen a LifeXP o a sus licenciantes y estan protegidos por la normativa aplicable.\n\n'
+                '8. FEEDBACK\n'
+                'Si nos envias sugerencias, comentarios o ideas, podremos usarlos para mejorar LifeXP sin obligacion de compensacion, salvo que la ley disponga lo contrario.\n\n'
+                '9. DISPONIBILIDAD Y CAMBIOS\n'
+                'No garantizamos que la app estara disponible en todo momento ni libre de errores. Podemos realizar mantenimiento, actualizaciones o cambios tecnicos que afecten temporalmente el servicio.\n\n'
+                '10. NOTIFICACIONES Y RECORDATORIOS\n'
+                'Si activas recordatorios o notificaciones, autorizas su uso en tu dispositivo conforme a los permisos que concedas. La recepcion efectiva puede depender del sistema operativo, configuraciones del dispositivo o servicios de terceros.\n\n'
+                '11. DESCARGO DE RESPONSABILIDAD\n'
+                'LifeXP se proporciona en la medida permitida por la ley "tal cual" y "segun disponibilidad", sin garantias expresas o implicitas de disponibilidad continua, exactitud absoluta, aptitud para un proposito particular o ausencia total de errores.\n\n'
+                '12. LIMITACION DE RESPONSABILIDAD\n'
+                'En la medida permitida por la ley, LifeXP y sus responsables no seran responsables por danos indirectos, incidentales, especiales, consecuentes o perdida de datos, ingresos, beneficios o reputacion derivados del uso o imposibilidad de uso de la app.\n\n'
+                '13. TERMINACION\n'
+                'Podemos suspender o cerrar cuentas que infrinjan estos terminos, la ley aplicable o la seguridad del servicio. Tambien puedes dejar de usar la app o eliminar tu cuenta en cualquier momento desde las opciones disponibles.\n\n'
+                '14. PRIVACIDAD\n'
+                'El uso de la app tambien esta regulado por nuestra Politica de Privacidad, que forma parte complementaria de estos terminos.\n\n'
+                '15. CAMBIOS A LOS TERMINOS\n'
+                'Podemos actualizar estos terminos ocasionalmente. Cuando los cambios sean relevantes, publicaremos la version actualizada en la app y, cuando corresponda, te lo notificaremos por medios razonables.\n\n'
+                '16. LEY APLICABLE\n'
+                'Estos terminos se interpretaran conforme a la ley aplicable determinada por el proveedor del servicio y las normas imperativas de proteccion al consumidor que correspondan en tu jurisdiccion.\n\n'
+                '17. CONTACTO\n'
+                'Para soporte o consultas legales: support@lifexp.app'
+            : 'TERMS OF USE\n\n'
+                'Last updated: April 6, 2026\n\n'
+                '1. ACCEPTANCE\n'
+                'By creating an account, accessing, or using LifeXP, you agree to these Terms of Use. If you do not agree, you must not use the app.\n\n'
+                '2. SERVICE\n'
+                'LifeXP provides personal organization, habit tracking, goal tracking, task management, progress, reminder, and statistics features. We may modify, improve, suspend, or remove features at any time.\n\n'
+                '3. ELIGIBILITY AND PERSONAL USE\n'
+                'You must have sufficient legal capacity to accept these terms under applicable law. The app is intended for personal, non-commercial use unless expressly authorized in writing.\n\n'
+                '4. ACCOUNT AND SECURITY\n'
+                'You are responsible for activity under your account and for keeping your credentials confidential. You must provide reasonably accurate and updated information.\n\n'
+                '5. PROHIBITED CONDUCT\n'
+                'You may not use LifeXP for:\n'
+                '- Violating any law or third-party rights.\n'
+                '- Attempting unauthorized access, interference, scraping, technical abuse, or fraud.\n'
+                '- Distributing malware, harmful material, or content that infringes intellectual property or privacy rights.\n'
+                '- Using the app in a way that harms the stability, security, or availability of the service.\n\n'
+                '6. YOUR CONTENT\n'
+                'You retain ownership of the content you submit to LifeXP. You grant us a limited, non-exclusive license necessary to host, process, sync, display, and operate that content for the purpose of providing the service.\n\n'
+                '7. LIFEXP INTELLECTUAL PROPERTY\n'
+                'The app, its brand, interface, design, code, product logic, text, graphics, and other elements, excluding your content and third-party components, belong to LifeXP or its licensors and are protected by applicable law.\n\n'
+                '8. FEEDBACK\n'
+                'If you send us suggestions, comments, or ideas, we may use them to improve LifeXP without obligation to compensate you, except where required by law.\n\n'
+                '9. AVAILABILITY AND CHANGES\n'
+                'We do not guarantee that the app will always be available or error-free. We may perform maintenance, updates, or technical changes that temporarily affect the service.\n\n'
+                '10. NOTIFICATIONS AND REMINDERS\n'
+                'If you enable reminders or notifications, you authorize their use on your device according to the permissions you grant. Actual delivery may depend on the operating system, device settings, or third-party services.\n\n'
+                '11. DISCLAIMER\n'
+                'To the maximum extent permitted by law, LifeXP is provided "as is" and "as available", without warranties of continuous availability, absolute accuracy, fitness for a particular purpose, or complete absence of errors.\n\n'
+                '12. LIMITATION OF LIABILITY\n'
+                'To the maximum extent permitted by law, LifeXP and its operators will not be liable for indirect, incidental, special, consequential damages, or loss of data, revenue, profits, or reputation arising from the use of, or inability to use, the app.\n\n'
+                '13. TERMINATION\n'
+                'We may suspend or terminate accounts that violate these terms, applicable law, or service security. You may also stop using the app or delete your account at any time using the available options.\n\n'
+                '14. PRIVACY\n'
+                'Use of the app is also governed by our Privacy Policy, which forms a complementary part of these terms.\n\n'
+                '15. CHANGES TO THE TERMS\n'
+                'We may update these terms from time to time. When changes are material, we will publish the updated version in the app and, where appropriate, notify you through reasonable means.\n\n'
+                '16. GOVERNING LAW\n'
+                'These terms will be interpreted under the applicable law determined by the service provider and by any mandatory consumer protection rules that apply in your jurisdiction.\n\n'
+                '17. CONTACT\n'
+                'For support or legal inquiries: support@lifexp.app');
   }
 
   void _openLicenses() {
@@ -581,6 +777,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                           // XP Card — siempre visible
                           _buildXpCard(c, s),
                           const SizedBox(height: 10),
+
+                          _buildSection(
+                              c: c,
+                              label: s.sectionXpHistory,
+                              accent: AutumnColors.accentOrange,
+                              child: _buildXpHistorySection(c, s),
+                              initiallyExpanded: false),
+                          const SizedBox(height: 8),
 
                           // Logros
                           _buildSection(
@@ -832,6 +1036,146 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             ])),
       ]),
     );
+  }
+
+  Widget _buildXpHistorySection(dynamic c, _S s) {
+    if (_xpHistory.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text(
+          s.noXpHistory,
+          style: GoogleFonts.pressStart2p(
+            fontSize: 7,
+            color: c.textDisabled,
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: _xpHistory.map((entry) {
+        final positive = entry.amount >= 0;
+        final amountLabel = '${positive ? '+' : ''}${entry.amount} XP';
+        final amountColor =
+            positive ? AutumnColors.mossGreen : AutumnColors.accentRed;
+        final icon = _xpHistoryIcon(entry.reason);
+        final title = _xpHistoryTitle(entry.reason, s);
+
+        return Column(
+          children: [
+            if (entry == _xpHistory.first)
+              Padding(
+                padding: const EdgeInsets.only(top: 2, bottom: 10),
+                child: Text(
+                  s.recentXpActivity,
+                  style: GoogleFonts.pressStart2p(
+                    fontSize: 7,
+                    color: c.textDisabled,
+                  ),
+                ),
+              ),
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: c.bgSurface,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: c.divider),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: amountColor.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Center(
+                      child: Text(
+                        icon,
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title.toUpperCase(),
+                          style: GoogleFonts.pressStart2p(
+                            fontSize: 7,
+                            color: c.textPrimary,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          entry.eventDate,
+                          style: GoogleFonts.pressStart2p(
+                            fontSize: 6,
+                            color: c.textDisabled,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    amountLabel,
+                    style: GoogleFonts.pressStart2p(
+                      fontSize: 7,
+                      color: amountColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      }).toList(),
+    );
+  }
+
+  String _xpHistoryTitle(String reason, _S s) {
+    final normalized = reason.toLowerCase();
+    if (normalized.contains('habito') || normalized.contains('hábito')) {
+      return s.isEs ? 'Habito completado' : 'Habit completed';
+    }
+    if (normalized.contains('meta vencida')) {
+      return s.isEs ? 'Meta vencida' : 'Goal expired';
+    }
+    if (normalized.contains('objetivo de habito completado')) {
+      return s.isEs ? 'Objetivo anclado completado' : 'Linked objective completed';
+    }
+    if (normalized.contains('objetivo de habito fallido')) {
+      return s.isEs ? 'Objetivo anclado fallido' : 'Linked objective failed';
+    }
+    if (normalized.contains('objetivo completado')) {
+      return s.isEs ? 'Objetivo completado' : 'Objective completed';
+    }
+    return reason;
+  }
+
+  String _xpHistoryIcon(String reason) {
+    final normalized = reason.toLowerCase();
+    if (normalized.contains('habito') || normalized.contains('hábito')) {
+      return '✅';
+    }
+    if (normalized.contains('meta vencida')) {
+      return '⏰';
+    }
+    if (normalized.contains('fallido')) {
+      return '❌';
+    }
+    if (normalized.contains('objetivo')) {
+      return '🎯';
+    }
+    return '⚡';
   }
 
   Widget _buildMiniTree() {

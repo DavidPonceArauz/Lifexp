@@ -4,7 +4,6 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.INTERNET"/> <!-- requerido por PostHog -->
 
@@ -12,14 +11,6 @@
         android:label="lifexp"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
-
-        <!-- PostHog config -->
-        <meta-data android:name="com.posthog.android.API_KEY"
-            android:value="phc_XzHMZphHmpnlZcuHY9Njdgq7Ep6a6BHJyy1FQNNzmNs" />
-        <meta-data android:name="com.posthog.android.POSTHOG_HOST"
-            android:value="https://us.i.posthog.com" />
-        <meta-data android:name="com.posthog.android.TRACK_APPLICATION_LIFECYCLE_EVENTS"
-            android:value="true" />
 
         <activity
             android:name=".MainActivity"
@@ -65,7 +56,7 @@
             </intent-filter>
         </receiver>
 
-        <!-- Receiver para alarmas exactas -->
+        <!-- Receiver para recordatorios programados -->
         <receiver
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
             android:exported="false"/>

@@ -1,14 +1,17 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:posthog_flutter/posthog_flutter.dart';
 
 class AnalyticsService {
-  static const _apiKey = 'phc_XzHMZphHmpnlZcuHY9Njdgq7Ep6a6BHJyy1FQNNzmNs';
-  static const _host   = 'https://us.i.posthog.com';
-
   static Future<void> init() async {
-    final config = PostHogConfig(_apiKey)
-      ..host = _host
-      ..flushAt = 1                              // ← envía cada evento inmediatamente
-      ..flushInterval = const Duration(seconds: 20) // ← flush cada 5 segundos
+    final apiKey = dotenv.env['POSTHOG_API_KEY'];
+    if (apiKey == null || apiKey.isEmpty) {
+      return;
+    }
+
+    final config = PostHogConfig(apiKey)
+      ..host = dotenv.env['POSTHOG_HOST'] ?? 'https://us.i.posthog.com'
+      ..flushAt = 1
+      ..flushInterval = const Duration(seconds: 20)
       ..captureApplicationLifecycleEvents = true
       ..debug = false;
     await Posthog().setup(config);
@@ -34,9 +37,9 @@ class AnalyticsService {
     await Posthog().capture(
       eventName: 'habit_completed',
       properties: {
-        'habit_id':       habitId,
-        'habit_name':     habitName,
-        'category':       category,
+        'habit_id': habitId,
+        'habit_name': habitName,
+        'category': category,
         'current_streak': currentStreak,
       },
     );
@@ -70,8 +73,8 @@ class AnalyticsService {
     await Posthog().capture(
       eventName: 'streak_milestone',
       properties: {
-        'habit_id':    habitId,
-        'habit_name':  habitName,
+        'habit_id': habitId,
+        'habit_name': habitName,
         'streak_days': streakDays,
       },
     );

@@ -24,21 +24,19 @@ import 'features/auth/presentation/auth_notifier.dart';
 
 bool kIsRecoveryFlow = false;
 
-const _sentryDsn =
-    'https://fa3674a0b82c7eaf8354e0054586bc40@o4510991988817920.ingest.us.sentry.io/4510991992291328';
-
 Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: '.env');
+
   await SentryFlutter.init(
         (options) {
-      options.dsn = _sentryDsn;
+      options.dsn = dotenv.env['SENTRY_DSN'];
       options.tracesSampleRate = 0.2;
       options.environment = 'production';
       options.attachScreenshot = true;
       options.attachViewHierarchy = true;
     },
     appRunner: () async {
-      WidgetsFlutterBinding.ensureInitialized();
-      await dotenv.load(fileName: '.env');
       await SupabaseConfig.initialize();
       await initializeDateFormatting('es', null);
       await NotificationService().init();

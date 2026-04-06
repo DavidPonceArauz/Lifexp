@@ -48,6 +48,9 @@ dependencies:
   # Para subir imagenes
   image_picker: ^1.1.2
 
+  # Enlaces externos y mailto
+  url_launcher: ^6.3.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

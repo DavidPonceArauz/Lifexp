@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 /// Escribe datos en SharedPreferences nativo de Android
 /// y dispara la actualizacion del widget via MethodChannel.
 class WidgetService {
-  static const _channel = MethodChannel('com.example.lifexp/widget');
+  static const _channel = MethodChannel('app.lifexp.dewas/widget');
 
   static Future<void> init() async {}
 
