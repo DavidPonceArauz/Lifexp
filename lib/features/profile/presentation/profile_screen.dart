@@ -160,7 +160,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       final xpForNext = _xpForLevel(level + 1);
       final currentXp =
           (totalXp - xpForCurrent).clamp(0, xpForNext - xpForCurrent);
-      if (mounted)
+      if (mounted) {
         setState(() {
           _username = profile['username'] as String? ?? 'JUGADOR';
           _email = profile['email'] as String? ?? '';
@@ -169,6 +169,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           _currentXp = currentXp;
           _xpForNext = xpForNext - xpForCurrent;
         });
+      }
     } catch (e) {
       debugPrint('loadProfile error: $e');
     }
@@ -220,7 +221,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         if (currentStreak > maxStreak) maxStreak = currentStreak;
         prev = d;
       }
-      if (mounted)
+      if (mounted) {
         setState(() {
           _habitsCompleted = habitLogs.length;
           _goalsCompleted = goals.length;
@@ -228,6 +229,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           _maxStreak = maxStreak;
           _totalDaysActive = dates.length;
         });
+      }
     } catch (e) {
       debugPrint('loadStats error: $e');
     }
@@ -271,7 +273,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
   int _xpForLevel(int level) {
     int total = 0;
-    for (int i = 1; i < level; i++) total += 300 + i * 200;
+    for (int i = 1; i < level; i++) {
+      total += 300 + i * 200;
+    }
     return total;
   }
 
@@ -305,7 +309,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         ],
       ),
     );
-    if (confirm != true || !mounted) return;
+    if (confirm != true || !mounted) {
+      return;
+    }
     await SupabaseConfig.client.auth.signOut();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('saved_user_id');
@@ -324,7 +330,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       confirmWord: s.isEs ? 'CONFIRMAR' : 'CONFIRM',
       color: AutumnColors.accentOrange,
     );
-    if (!confirmed || !mounted) return;
+    if (!confirmed || !mounted) {
+      return;
+    }
     try {
       await _xpService.resetXp(userId: widget.userId);
       setState(() {
@@ -336,9 +344,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       _xpBarCtrl.reset();
       _xpBarCtrl.forward();
       HapticFeedback.heavyImpact();
-      if (mounted)
-        _showSnack(s.isEs ? 'XP reseteado a 0' : 'XP reset to 0',
-            AutumnColors.accentOrange);
+      if (mounted) {
+        _showSnack(
+          s.isEs ? 'XP reseteado a 0' : 'XP reset to 0',
+          AutumnColors.accentOrange,
+        );
+      }
     } catch (e) {
       debugPrint('resetXp error: $e');
     }
@@ -354,7 +365,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       confirmWord: s.isEs ? 'CONFIRMAR' : 'CONFIRM',
       color: AutumnColors.accentRed,
     );
-    if (!confirmed || !mounted) return;
+    if (!confirmed || !mounted) {
+      return;
+    }
     try {
       await _db.rpc('delete_my_account');
       await SupabaseConfig.client.auth.signOut();
@@ -534,7 +547,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     _openExternalLegalUrl(Uri(
       scheme: 'https',
       host: 'davidponcearauz.github.io',
-      path: '/Lifexp/terms-of-use.html',
+      path: '/Lifexp/privacy-policy.html',
     ));
   }
 
@@ -542,7 +555,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     _openExternalLegalUrl(Uri(
       scheme: 'https',
       host: 'davidponcearauz.github.io',
-      path: '/Lifexp/privacy-policy.html',
+      path: '/Lifexp/terms-of-use.html',
     ));
   }
 
@@ -578,13 +591,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         scheme: 'mailto',
         path: 'support@lifexp.app',
         query: 'subject=LifeXP Support');
-    if (await canLaunchUrl(uri)) await launchUrl(uri);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
   }
 
   Future<void> _rateApp() async {
     final uri = Uri.parse('https://apps.apple.com/app/idYOUR_APP_ID');
-    if (await canLaunchUrl(uri))
+    if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   // ── BUILD ─────────────────────────────────────────────────────────────────
@@ -1252,10 +1268,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             .map((st) => Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                      color: (st.$4 as Color).withValues(alpha: 0.06),
+                      color: st.$4.withValues(alpha: 0.06),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                          color: (st.$4 as Color).withValues(alpha: 0.2))),
+                          color: st.$4.withValues(alpha: 0.2))),
                   child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -1264,7 +1280,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                         Text(st.$2,
                             style: GoogleFonts.pressStart2p(
                                 fontSize: 13,
-                                color: st.$4 as Color,
+                                color: st.$4,
                                 fontWeight: FontWeight.bold)),
                         const SizedBox(height: 3),
                         Text(st.$3,

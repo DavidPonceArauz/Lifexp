@@ -6,7 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/supabase/supabase_client.dart';
 import '../../../core/theme/autumn_theme.dart';
 import '../../../core/theme/language_provider.dart';
-import '../../../core/widgets/autumn_widgets.dart';
 import '../../../core/services/widget_service.dart';
 import '../../habits/presentation/providers/habits_provider.dart';
 import '../../profile/presentation/profile_screen.dart';
@@ -197,16 +196,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       _loadCalendarEvents(),
     ]);
     Future.delayed(const Duration(milliseconds: 600), () {
-      if (mounted) _checkFreezeNotification();
+      if (mounted) {
+        _checkFreezeNotification();
+      }
     });
   }
 
   Future<void> _loadAllStats() async {
     try {
       final results = await Future.wait([_fetchStats(), _fetchXp()]);
-      final stats = results[0] as Map<String, dynamic>;
-      final xp    = results[1] as Map<String, dynamic>;
-      if (!mounted) return;
+      final stats = results[0];
+      final xp = results[1];
+      if (!mounted) {
+        return;
+      }
       final newLevel = xp['level'] as int;
       await _maybeNotifyLevelUp(newLevel);
       setState(() {
@@ -223,7 +226,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   Future<void> _maybeNotifyLevelUp(int newLevel) async {
-    if (newLevel <= 1) return;
+    if (newLevel <= 1) {
+      return;
+    }
     try {
       final prefs = await SharedPreferences.getInstance();
       final lastNotified = prefs.getInt('last_level_notified_${widget.userId}') ?? 1;
@@ -300,13 +305,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   int _calcLevel(int totalXp) {
     int level = 1;
-    while (totalXp >= _xpForLevel(level + 1)) { level++; if (level >= 20) break; }
+    while (totalXp >= _xpForLevel(level + 1)) {
+      level++;
+      if (level >= 20) {
+        break;
+      }
+    }
     return level;
   }
 
   int _xpForLevel(int level) {
     int total = 0;
-    for (int i = 1; i < level; i++) total += 300 + i * 200;
+    for (int i = 1; i < level; i++) {
+      total += 300 + i * 200;
+    }
     return total;
   }
 
@@ -338,7 +350,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         ...(results[1] as List).map((t) => {'title': t['title'], 'deadline': t['deadline']}),
       ];
       all.sort((a, b) => (a['deadline'] as String).compareTo(b['deadline'] as String));
-      if (mounted) setState(() => _deadlines = all.take(5).toList());
+      if (mounted) {
+        setState(() => _deadlines = all.take(5).toList());
+      }
     } catch (e) { debugPrint('loadDeadlines error: $e'); }
   }
 
@@ -369,23 +383,35 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
       final Map<String, List<Color>> events = {};
       void addEvent(String? date, Color color) {
-        if (date == null || date.isEmpty) return;
+        if (date == null || date.isEmpty) {
+          return;
+        }
         final key = date.substring(0, 10);
         events[key] = [...(events[key] ?? []), color];
       }
 
-      for (final g in results[0] as List) addEvent(g['deadline'] as String?, AutumnColors.accentOrange);
-      for (final t in results[1] as List) addEvent(t['deadline'] as String?, AutumnColors.accentGold);
-      for (final o in results[2] as List) addEvent(o['deadline'] as String?, AutumnColors.mossGreen);
+      for (final g in results[0] as List) {
+        addEvent(g['deadline'] as String?, AutumnColors.accentOrange);
+      }
+      for (final t in results[1] as List) {
+        addEvent(t['deadline'] as String?, AutumnColors.accentGold);
+      }
+      for (final o in results[2] as List) {
+        addEvent(o['deadline'] as String?, AutumnColors.mossGreen);
+      }
 
       final ownRaw    = results[3] as List;
       final ownEvents = ownRaw.map((r) => CalendarEvent.fromMap(Map<String, dynamic>.from(r))).toList();
-      for (final e in ownEvents) addEvent(e.date, e.flutterColor);
+      for (final e in ownEvents) {
+        addEvent(e.date, e.flutterColor);
+      }
 
-      if (mounted) setState(() {
-        _calendarEvents = events;
-        _ownEvents      = ownEvents;
-      });
+      if (mounted) {
+        setState(() {
+          _calendarEvents = events;
+          _ownEvents = ownEvents;
+        });
+      }
     } catch (e) { debugPrint('loadCalendarEvents error: $e'); }
   }
 
@@ -419,7 +445,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         }
       }
 
-      if (dates.isEmpty) return;
+      if (dates.isEmpty) {
+        return;
+      }
 
       for (final d in dates) {
         final result = await _db.from('calendar_events').insert({
@@ -448,7 +476,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     } catch (e) { debugPrint('createCalendarEvent error: $e'); }
   }
 
-  Future<void> _deleteCalendarEvent(int id, {int? repeatGroupId}) async {
+  Future<void> _deleteCalendarEvent(int id) async {
     try {
       await NotificationService().cancelCalendarEventNotification(id);
       await _db.from('calendar_events').delete().eq('id', id).eq('user_id', widget.userId);
@@ -478,7 +506,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       final prefs     = await SharedPreferences.getInstance();
       final today     = DateTime.now().toIso8601String().substring(0, 10);
       final lastShown = prefs.getString('freeze_popup_shown_${widget.userId}') ?? '';
-      if (lastShown == today) return;
+      if (lastShown == today) {
+        return;
+      }
       final habitsNotifier = ref.read(habitsProvider.notifier);
       final habitsState    = ref.read(habitsProvider);
       final missing = await habitsNotifier.getMissingYesterday();
@@ -517,19 +547,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               child: Row(children: [
                 Expanded(child: Text(h.name.toUpperCase(),
                     style: GoogleFonts.pressStart2p(fontSize: 9, color: c.textPrimary))),
-                StatefulBuilder(builder: (_, _st) => ElevatedButton(
+                StatefulBuilder(builder: (_, __) => ElevatedButton(
                     style: ElevatedButton.styleFrom(backgroundColor: AutumnColors.freeze,
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
                     onPressed: freezesLeft[0] > 0 ? () async {
                       final ok = await ref.read(habitsProvider.notifier).applyManualFreeze(h.id);
-                      if (ok) { freezesLeft[0]--; setDlg(() {}); }
+                      if (ok) {
+                        freezesLeft[0]--;
+                        setDlg(() {});
+                      }
                     } : null,
                     child: Text(freezesLeft[0] > 0 ? '❄ FREEZE' : s.noFreezes,
                         style: GoogleFonts.pressStart2p(fontSize: 8, color: Colors.white)))),
               ]))),
         ])),
         actions: [
-          TextButton(onPressed: () { Navigator.pop(ctx); _goTo(2); },
+          TextButton(onPressed: () {
+            Navigator.pop(ctx);
+            _goTo(2);
+          },
               child: Text(s.goToHabits,
                   style: GoogleFonts.pressStart2p(fontSize: 9, color: AutumnColors.mossGreen))),
           TextButton(onPressed: () => Navigator.pop(ctx),
@@ -775,7 +811,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final objs         = (results[2] as List).map((o) => o['title'] as String).toList();
     final dayOwnEvents = _ownEvents.where((e) => e.date == dateKey).toList();
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     showModalBottomSheet(
       context: context,
@@ -803,8 +841,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       GestureDetector(
                         onTap: () => _openAddEventDialog(context, dateKey, onAdded: () async {
                           await _loadCalendarEvents();
-                          if (mounted) Navigator.pop(ctx);
-                          if (mounted) _showDayDetail(context, date);
+                          if (!mounted) {
+                            return;
+                          }
+                          Navigator.pop(ctx);
+                          _showDayDetail(context, date);
                         }),
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -1174,14 +1215,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     style: ElevatedButton.styleFrom(backgroundColor: eventColor,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
-                    onPressed: () async {
-                      if (titleCtrl.text.trim().isEmpty) return;
-                      if (repeatEnabled && selectedWeekdays.isEmpty) return;
-                      if (repeatEnabled && !neverEnds && repeatUntil == null) return;
-                      Navigator.pop(ctx);
-                      final timeStr = selectedTime != null
-                          ? '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}:00'
-                          : null;
+                      onPressed: () async {
+                       if (titleCtrl.text.trim().isEmpty) {
+                         return;
+                       }
+                       if (repeatEnabled && selectedWeekdays.isEmpty) {
+                         return;
+                       }
+                       if (repeatEnabled && !neverEnds && repeatUntil == null) {
+                         return;
+                       }
+                       Navigator.pop(ctx);
+                        final timeStr = selectedTime != null
+                            ? '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}:00'
+                            : null;
                       await _createCalendarEvent(
                         title: titleCtrl.text, date: date, time: timeStr,
                         notes: notesCtrl.text, category: selectedCategory,
@@ -1420,15 +1467,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   Widget _deadlineRow(BuildContext context, Map<String, dynamic> item, _HomeS s) {
     final c = context.ac;
     DateTime? dl;
-    try { dl = DateTime.parse(item['deadline'] as String); } catch (_) {}
-    final diff = dl != null ? dl.difference(DateTime.now()).inDays : null;
-    String label; Color color;
-    if (diff == null)  { label = '?';              color = c.textDisabled; }
-    else if (diff < 0) { label = s.overdue;        color = AutumnColors.accentRed; }
-    else if (diff == 0){ label = s.today;           color = AutumnColors.accentRed; }
-    else if (diff == 1){ label = s.tomorrow;        color = AutumnColors.accentOrange; }
-    else if (diff <= 3){ label = 'En ${diff}d';    color = AutumnColors.accentOrange; }
-    else               { label = 'En ${diff}d';    color = AutumnColors.accentGold; }
+    try {
+      dl = DateTime.parse(item['deadline'] as String);
+    } catch (_) {}
+    final diff = dl?.difference(DateTime.now()).inDays;
+    String label;
+    Color color;
+    if (diff == null) {
+      label = '?';
+      color = c.textDisabled;
+    } else if (diff < 0) {
+      label = s.overdue;
+      color = AutumnColors.accentRed;
+    } else if (diff == 0) {
+      label = s.today;
+      color = AutumnColors.accentRed;
+    } else if (diff == 1) {
+      label = s.tomorrow;
+      color = AutumnColors.accentOrange;
+    } else if (diff <= 3) {
+      label = 'En ${diff}d';
+      color = AutumnColors.accentOrange;
+    } else {
+      label = 'En ${diff}d';
+      color = AutumnColors.accentGold;
+    }
     final title = item['title'] as String? ?? '';
     return Padding(padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(children: [

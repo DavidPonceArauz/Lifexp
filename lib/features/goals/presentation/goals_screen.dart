@@ -166,9 +166,16 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
   }
 
   void _setMsg(String msg, Color color) {
-    if (mounted) setState(() { _message = msg; _messageColor = color; });
+    if (mounted) {
+      setState(() {
+        _message = msg;
+        _messageColor = color;
+      });
+    }
     Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) setState(() => _message = '');
+      if (mounted) {
+        setState(() => _message = '');
+      }
     });
   }
 
@@ -582,13 +589,17 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
                   onPressed: () => Navigator.pop(ctx, true),
                   child: Text(s.delete, style: GoogleFonts.pressStart2p(fontSize: 9, color: c.bgCard))),
             ]));
-    if (confirmed != true) return;
+    if (confirmed != true) {
+      return;
+    }
     await NotificationService().cancelItemNotifications(itemId: goalId, itemType: 'goal');
     await ref.read(goalsProvider.notifier).deleteGoal(goalId);
   }
 
   void _openObjectivesPopup(Goal goal) {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     showDialog(context: context,
         builder: (ctx) => _ObjectivesDialog(
             goal: goal, userId: widget.userId,
@@ -830,7 +841,9 @@ class _ObjectivesDialogState extends State<_ObjectivesDialog> {
     try {
       final profile = await _db.from('profiles').select('total_xp').eq('id', widget.userId).single();
       final level = _calcLevel(profile['total_xp'] as int? ?? 0);
-      if (mounted) setState(() => _currentLevel = level);
+      if (mounted) {
+        setState(() => _currentLevel = level);
+      }
     } catch (e) { debugPrint('loadCurrentLevel error: $e'); }
   }
 
@@ -848,9 +861,19 @@ class _ObjectivesDialogState extends State<_ObjectivesDialog> {
         final hd = r['habits'] as Map<String, dynamic>?;
         return Objective.fromMap({...Map<String, dynamic>.from(r), 'habit_name': hd?['name']});
       }).toList();
-      if (mounted) setState(() { _objectives = parsed; _loaded = true; });
+      if (mounted) {
+        setState(() {
+          _objectives = parsed;
+          _loaded = true;
+        });
+      }
     } catch (e) {
-      if (mounted) setState(() { _objectives = []; _loaded = true; });
+      if (mounted) {
+        setState(() {
+          _objectives = [];
+          _loaded = true;
+        });
+      }
     }
     _notifyParent();
   }
@@ -915,7 +938,9 @@ class _ObjectivesDialogState extends State<_ObjectivesDialog> {
       title: obj.title,
       accentColor: AutumnColors.accentOrange,
     );
-    if (result == null) return;
+    if (result == null) {
+      return;
+    }
     try {
       await _db.from('objectives')
           .update({'description': result})
@@ -1110,18 +1135,24 @@ class _AddObjectiveRowState extends State<_AddObjectiveRow> {
     try {
       final h = await _db.from('habits').select('id, name')
           .eq('user_id', widget.userId).eq('active', true).order('name');
-      if (mounted) setState(() => _habits = List<Map<String, dynamic>>.from(h));
+      if (mounted) {
+        setState(() => _habits = List<Map<String, dynamic>>.from(h));
+      }
     } catch (_) {}
   }
 
   Future<void> _addObjective() async {
-    if (_titleCtrl.text.trim().isEmpty) return;
+    if (_titleCtrl.text.trim().isEmpty) {
+      return;
+    }
     try {
       final ownedGoal = await _db.from('goals').select('id')
           .eq('id', widget.goalId)
           .eq('user_id', widget.userId)
           .maybeSingle();
-      if (ownedGoal == null) return;
+      if (ownedGoal == null) {
+        return;
+      }
 
       final habitId = _linkHabit ? _selectedHabitId : null;
       final result  = await _db.from('objectives').insert({
@@ -1158,7 +1189,9 @@ class _AddObjectiveRowState extends State<_AddObjectiveRow> {
       title: _titleCtrl.text.isNotEmpty ? _titleCtrl.text : 'New description',
       accentColor: AutumnColors.accentOrange,
     );
-    if (result != null) setState(() => _descJson = result);
+    if (result != null) {
+      setState(() => _descJson = result);
+    }
   }
 
   @override
@@ -1196,7 +1229,9 @@ class _AddObjectiveRowState extends State<_AddObjectiveRow> {
                 builder: (ctx, child) => Theme(data: ThemeData.light().copyWith(
                     colorScheme: const ColorScheme.light(primary: AutumnColors.accentOrange)),
                     child: child!));
-            if (p != null) setState(() => _deadline = p);
+            if (p != null) {
+              setState(() => _deadline = p);
+            }
           },
           child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
