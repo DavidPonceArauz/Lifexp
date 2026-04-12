@@ -48,9 +48,13 @@ class NotificationService {
       onDidReceiveBackgroundNotificationResponse: notificationBackgroundHandler,
     );
 
-    await _plugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestNotificationsPermission();
+    final androidPlugin = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+
+    await androidPlugin?.requestNotificationsPermission();
+    await androidPlugin?.requestExactAlarmsPermission();
 
     await _plugin
         .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()

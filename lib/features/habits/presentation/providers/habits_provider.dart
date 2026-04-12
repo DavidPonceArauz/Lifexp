@@ -202,6 +202,7 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
   Future<void> _checkLinkedObjectives(int habitId) async {
     try {
       final today = DateTime.now().toIso8601String().substring(0, 10);
+      var goalsChanged = false;
 
       final ownedHabit = await _db
           .from('habits')
@@ -230,6 +231,7 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
 
       for (final obj in objectives as List) {
         final objId = obj['id'] as int;
+        final goalId = obj['goal_id'] as int;
         final deadlineRaw = obj['deadline'];
         final createdAtRaw = obj['created_at'] as String;
 
@@ -284,6 +286,9 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
               .from('objectives')
               .update({'status': 'completed'})
               .eq('id', objId);
+          _ref
+              .read(goalsProvider.notifier)
+              .applyLinkedObjectiveResult(goalId, completed: true);
           await _repo.applyXp(
             _userId,
             50,
@@ -292,6 +297,7 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
             objId,
             today,
           );
+          goalsChanged = true;
         } else if (evaluation.deadlineReached) {
           await _db.from('objectives').update({'status': 'failed'}).eq(
             'id',
@@ -305,9 +311,12 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
             objId,
             today,
           );
+          goalsChanged = true;
         }
+      }
 
-        _ref.invalidate(goalsProvider);
+      if (goalsChanged) {
+        await _ref.read(goalsProvider.notifier).load();
       }
     } catch (e) {
       debugPrint('_checkLinkedObjectives error: $e');

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as sb;
 import '../../../core/supabase/supabase_client.dart';
 import '../../../core/theme/autumn_theme.dart';
+import '../../../main.dart' show NotificationDeepLink;
 
 // ── Estado de auth ────────────────────────────────────────────
 
@@ -101,7 +102,9 @@ class _AuthGateState extends ConsumerState<AuthGate> {
     }
 
     if (auth.isAuthenticated && auth.userId != null) {
-      _navigate('/home', arguments: auth.userId);
+      final pending = NotificationDeepLink.consume();
+      final route = pending != null ? '/$pending' : '/home';
+      _navigate(route, arguments: auth.userId);
       return const SizedBox.shrink();
     }
 

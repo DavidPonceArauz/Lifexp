@@ -67,6 +67,7 @@ class _LifeXPAppState extends ConsumerState<LifeXPApp> {
     super.initState();
     _initDeepLinks();
     _initNotificationTaps();
+    _handleColdStartNotification();
   }
 
   Future<void> _initDeepLinks() async {
@@ -102,6 +103,14 @@ class _LifeXPAppState extends ConsumerState<LifeXPApp> {
         _navigateToPayload(payload);
       });
     });
+  }
+
+  void _handleColdStartNotification() {
+    final payload = NotificationService().consumeColdStartPayload();
+    if (payload == null || payload.isEmpty) {
+      return;
+    }
+    NotificationDeepLink.pending = payload;
   }
 
   void _navigateToPayload(String payload) {

@@ -146,6 +146,26 @@ class GoalsNotifier extends StateNotifier<GoalsState> {
     state = state.copyWith(allGoals: newAll, filteredGoals: _applyFilters(newAll));
   }
 
+  void applyLinkedObjectiveResult(int goalId, {required bool completed}) {
+    final newAll = state.allGoals.map((g) {
+      if (g.id != goalId) {
+        return g;
+      }
+
+      if (!completed) {
+        return g;
+      }
+
+      final nextCompleted = g.objTotal > 0
+          ? (g.objCompleted + 1).clamp(0, g.objTotal)
+          : g.objCompleted + 1;
+
+      return g.copyWith(objCompleted: nextCompleted);
+    }).toList();
+
+    state = state.copyWith(allGoals: newAll, filteredGoals: _applyFilters(newAll));
+  }
+
   // ── XP ────────────────────────────────────────────────────────────────────
 
   Future<void> applyXp(int amount, String reason, String source,

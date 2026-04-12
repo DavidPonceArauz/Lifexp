@@ -707,12 +707,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   // ── Sección expandible ────────────────────────────────────────────────────
 
   Widget _buildSection({
-    required dynamic c,
-    required String label,
-    required Color accent,
-    required Widget child,
-    bool initiallyExpanded = true,
-  }) {
+      required dynamic c,
+      required String label,
+      required Color accent,
+      required Widget child,
+      bool initiallyExpanded = false,
+    }) {
     return Container(
       decoration: BoxDecoration(
           color: c.bgCard,
