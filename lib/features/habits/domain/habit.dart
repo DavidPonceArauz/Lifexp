@@ -11,6 +11,8 @@ class Habit {
   final String category;
   final bool active;
   final String createdAt;
+  final HabitFrequencyMode frequencyMode;
+  final int weeklyTarget;
 
   const Habit({
     required this.id,
@@ -19,6 +21,8 @@ class Habit {
     required this.category,
     required this.active,
     required this.createdAt,
+    this.frequencyMode = HabitFrequencyMode.daily,
+    this.weeklyTarget = 7,
   });
 
   factory Habit.fromMap(Map<String, dynamic> map) => Habit(
@@ -28,6 +32,10 @@ class Habit {
         category: map['category'] as String? ?? '',
         active: map['active'] as bool? ?? true,
         createdAt: map['created_at'] as String? ?? '',
+        frequencyMode: (map['frequency_mode'] as String?) == 'weekly'
+            ? HabitFrequencyMode.weekly
+            : HabitFrequencyMode.daily,
+        weeklyTarget: map['weekly_target'] as int? ?? 7,
       );
 
   Map<String, dynamic> toMap() => {
@@ -37,6 +45,8 @@ class Habit {
         'category': category,
         'active': active,
         'created_at': createdAt,
+        'frequency_mode': frequencyMode.name,
+        'weekly_target': weeklyTarget,
       };
 
   Habit copyWith({
@@ -46,6 +56,8 @@ class Habit {
     String? category,
     bool? active,
     String? createdAt,
+    HabitFrequencyMode? frequencyMode,
+    int? weeklyTarget,
   }) =>
       Habit(
         id: id ?? this.id,
@@ -54,6 +66,8 @@ class Habit {
         category: category ?? this.category,
         active: active ?? this.active,
         createdAt: createdAt ?? this.createdAt,
+        frequencyMode: frequencyMode ?? this.frequencyMode,
+        weeklyTarget: weeklyTarget ?? this.weeklyTarget,
       );
 
   @override
@@ -71,6 +85,10 @@ class HabitStreak {
   final int streak;
   final HabitStatusKey statusKey;
   final int daysToFreeze;
+  final HabitFrequencyMode frequencyMode;
+  final int weeklyTarget;
+  final int currentPeriodProgress;
+  final int currentPeriodTarget;
 
   const HabitStreak({
     required this.habitId,
@@ -78,6 +96,10 @@ class HabitStreak {
     required this.streak,
     required this.statusKey,
     required this.daysToFreeze,
+    this.frequencyMode = HabitFrequencyMode.daily,
+    this.weeklyTarget = 7,
+    this.currentPeriodProgress = 0,
+    this.currentPeriodTarget = 1,
   });
 
   HabitStreak copyWith({
@@ -86,6 +108,10 @@ class HabitStreak {
     int? streak,
     HabitStatusKey? statusKey,
     int? daysToFreeze,
+    HabitFrequencyMode? frequencyMode,
+    int? weeklyTarget,
+    int? currentPeriodProgress,
+    int? currentPeriodTarget,
   }) =>
       HabitStreak(
         habitId: habitId ?? this.habitId,
@@ -93,7 +119,29 @@ class HabitStreak {
         streak: streak ?? this.streak,
         statusKey: statusKey ?? this.statusKey,
         daysToFreeze: daysToFreeze ?? this.daysToFreeze,
+        frequencyMode: frequencyMode ?? this.frequencyMode,
+        weeklyTarget: weeklyTarget ?? this.weeklyTarget,
+        currentPeriodProgress: currentPeriodProgress ?? this.currentPeriodProgress,
+        currentPeriodTarget: currentPeriodTarget ?? this.currentPeriodTarget,
       );
 }
 
+enum HabitFrequencyMode { daily, weekly }
+
 enum HabitStatusKey { done, frozen, missed, pending }
+
+class PendingHabitFreeze {
+  final int habitId;
+  final String name;
+  final DateTime freezeDate;
+  final bool isWeekly;
+  final String periodLabel;
+
+  const PendingHabitFreeze({
+    required this.habitId,
+    required this.name,
+    required this.freezeDate,
+    required this.isWeekly,
+    required this.periodLabel,
+  });
+}

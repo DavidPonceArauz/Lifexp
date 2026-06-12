@@ -639,11 +639,11 @@ class _NaturePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     for (final e in _elements) {
-      final x = e[0] as double;
-      final y = e[1] as double;
-      final s = e[2] as double;
-      final speed = e[3] as double;
-      final type = e[4] as double;
+      final x = e[0];
+      final y = e[1];
+      final s = e[2];
+      final speed = e[3];
+      final type = e[4];
 
       final phase = (t * speed + x) % 1.0;
       final dy = 10.0 * (0.5 - (phase % 1.0 - 0.5).abs());

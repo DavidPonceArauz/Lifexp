@@ -25,7 +25,7 @@ class _HabitS {
   String get newHabitTooltip => isEs ? 'Nuevo hábito'          : 'New habit';
 
   // Streak panel
-  String get dailyStreaks    => 'DAILY STREAKS';
+  String get dailyStreaks    => 'STREAKS';
   String freezes(int n)      => isEs
       ? (n > 0 ? '$n FREEZE${n != 1 ? "S" : ""} DISPONIBLE${n != 1 ? "s" : ""}' : 'NO FREEZES')
       : (n > 0 ? '$n FREEZE${n != 1 ? "S" : ""} AVAILABLE' : 'NO FREEZES');
@@ -37,6 +37,10 @@ class _HabitS {
   String get newHabit        => isEs ? 'NUEVO HÁBITO'          : 'NEW HABIT';
   String get habitName       => isEs ? 'Nombre del hábito...'  : 'Habit name...';
   String get categorySearch  => isEs ? 'Categoría (escribe para buscar)...' : 'Category (type to search)...';
+  String get frequencyLabel  => isEs ? 'FRECUENCIA'            : 'FREQUENCY';
+  String get dailyOption     => isEs ? 'DIARIO'                : 'DAILY';
+  String weeklyOption(int n) => isEs ? '$n/SEMANA'             : '$n/WEEK';
+  String get weeklyTargetLabel => isEs ? 'VECES POR SEMANA'    : 'TIMES PER WEEK';
   String get cancel          => isEs ? 'CANCELAR'              : 'CANCEL';
   String get add             => isEs ? 'AGREGAR'               : 'ADD';
   String get habitCreated    => isEs ? 'NUEVO HÁBITO CREADO!'  : 'NEW HABIT SYNCED!';
@@ -67,6 +71,16 @@ class _HabitS {
   String get pending         => isEs ? 'PENDIENTE'             : 'PENDING';
   String get markDone        => isEs ? '○  MARCAR'             : '○  MARK';
   String get completed       => isEs ? 'COMPLETADO'            : 'COMPLETED';
+  String weeklyProgress(int current, int target) =>
+      isEs ? '$current/$target esta semana' : '$current/$target this week';
+  String frequencySummary(HabitFrequencyMode mode, int weeklyTarget) {
+    if (mode == HabitFrequencyMode.daily) {
+      return isEs ? 'Diario' : 'Daily';
+    }
+    return isEs ? '$weeklyTarget veces por semana' : '$weeklyTarget times per week';
+  }
+  String streakDays(int value)  => '${value}d';
+  String streakWeeks(int value) => isEs ? '${value}sem' : '${value}wk';
 
   // Past day banner
   String get readOnly        => isEs ? '📋 REGISTRO DE ESTE DÍA (solo lectura)' : '📋 LOG FOR THIS DAY (read only)';
@@ -178,6 +192,47 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
     return _HabitS(lang == AppLanguage.es);
   }
 
+  TextStyle _appTextStyle({
+    required double fontSize,
+    required Color color,
+    FontWeight? fontWeight,
+  }) {
+    final typography = ref.watch(appTypographyProvider);
+    if (typography.mode == AppFontMode.legible) {
+      return GoogleFonts.atkinsonHyperlegible(
+        fontSize: fontSize,
+        color: color,
+        fontWeight: fontWeight,
+      );
+    }
+    return GoogleFonts.pressStart2p(
+      fontSize: fontSize,
+      color: color,
+      fontWeight: fontWeight,
+    );
+  }
+
+  Widget _streakMetricChip({
+    required IconData icon,
+    required Color color,
+    required String label,
+  }) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 10),
+            const SizedBox(width: 2),
+            Text(label, style: _appTextStyle(fontSize: 7, color: color)),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -186,11 +241,13 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
 
   Future<void> _loadReminderPrefs() async {
     final prefs = await SharedPreferences.getInstance();
-    if (mounted) setState(() {
-      _reminderEnabled = prefs.getBool('habit_reminder_enabled') ?? false;
-      _reminderHour    = prefs.getInt('habit_reminder_hour')    ?? 20;
-      _reminderMinute  = prefs.getInt('habit_reminder_minute')  ?? 0;
-    });
+    if (mounted) {
+      setState(() {
+        _reminderEnabled = prefs.getBool('habit_reminder_enabled') ?? false;
+        _reminderHour = prefs.getInt('habit_reminder_hour') ?? 20;
+        _reminderMinute = prefs.getInt('habit_reminder_minute') ?? 0;
+      });
+    }
   }
 
   Future<void> _saveReminderPrefs(bool enabled, int hour, int minute) async {
@@ -249,20 +306,10 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
     if (mounted) setState(() { _message = msg; _messageColor = color; });
   }
 
-  int _calcLevel(int totalXp) {
-    int level = 1;
-    while (totalXp >= _xpForLevel(level + 1)) { level++; if (level >= 20) break; }
-    return level;
-  }
-
-  int _xpForLevel(int level) {
-    int total = 0;
-    for (int i = 1; i < level; i++) total += 300 + i * 200;
-    return total;
-  }
 
   // ── Dialogs ───────────────────────────────────────────────────────────────
 
+  // ignore: unused_element
   void _showFreezePopup(int freezes, List<({int id, String name})> missingHabits) {
     final c           = context.ac;
     final s           = _s;
@@ -326,6 +373,8 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
     final s   = _s;
     final nameCtrl = TextEditingController();
     String? selectedCategory;
+    var frequencyMode = HabitFrequencyMode.daily;
+    var weeklyTarget = 3;
 
     showDialog(
       context: context,
@@ -388,6 +437,58 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
                             }))),
               ),
             ),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                s.frequencyLabel,
+                style: GoogleFonts.pressStart2p(fontSize: 8, color: c.textDisabled),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: _frequencyChip(
+                    label: s.dailyOption,
+                    selected: frequencyMode == HabitFrequencyMode.daily,
+                    onTap: () => setDlg(() => frequencyMode = HabitFrequencyMode.daily),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _frequencyChip(
+                    label: 'SEMANAL',
+                    selected: frequencyMode == HabitFrequencyMode.weekly,
+                    onTap: () => setDlg(() => frequencyMode = HabitFrequencyMode.weekly),
+                  ),
+                ),
+              ],
+            ),
+            if (frequencyMode == HabitFrequencyMode.weekly) ...[
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  s.weeklyTargetLabel,
+                  style: GoogleFonts.pressStart2p(fontSize: 8, color: c.textDisabled),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [1, 2, 3, 5]
+                    .map(
+                      (target) => _frequencyOptionChip(
+                        label: s.weeklyOption(target),
+                        selected: weeklyTarget == target,
+                        onTap: () => setDlg(() => weeklyTarget = target),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ],
           ])),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx),
@@ -397,7 +498,12 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
                 style: ElevatedButton.styleFrom(backgroundColor: AutumnColors.mossGreen),
                 onPressed: () async {
                   Navigator.pop(ctx);
-                  await ref.read(habitsProvider.notifier).createHabit(nameCtrl.text, selectedCategory ?? '');
+                  await ref.read(habitsProvider.notifier).createHabit(
+                    nameCtrl.text,
+                    selectedCategory ?? '',
+                    frequencyMode: frequencyMode,
+                    weeklyTarget: weeklyTarget,
+                  );
                   _setMsg(s.habitCreated, AutumnColors.mossGreen);
                 },
                 child: Text(s.add,
@@ -420,6 +526,68 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide(color: AutumnColors.mossGreen.withValues(alpha: 0.4))),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      ),
+    );
+  }
+
+  Widget _frequencyChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    final c = context.ac;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 130),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: selected ? AutumnColors.mossGreen : c.bgSurface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected ? AutumnColors.mossGreen : c.divider,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: GoogleFonts.pressStart2p(
+              fontSize: 8,
+              color: selected ? c.bgCard : c.textPrimary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _frequencyOptionChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    final c = context.ac;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 130),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? AutumnColors.accentOrange : c.bgSurface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected ? AutumnColors.accentOrange : c.divider,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.pressStart2p(
+            fontSize: 8,
+            color: selected ? c.bgCard : c.textPrimary,
+          ),
+        ),
       ),
     );
   }
@@ -470,7 +638,9 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
     final daysInMonth = DateTime(calDate.year, calDate.month + 1, 0).day;
     final startOffset = (DateTime(calDate.year, calDate.month, 1).weekday - 1) % 7;
     final cells       = <Widget>[];
-    for (int i = 0; i < startOffset; i++) cells.add(const SizedBox());
+    for (int i = 0; i < startOffset; i++) {
+      cells.add(const SizedBox());
+    }
     for (int d = 1; d <= daysInMonth; d++) {
       final day        = DateTime(calDate.year, calDate.month, d);
       final isFuture   = day.isAfter(today);
@@ -518,9 +688,9 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
       appBar: AppBar(
         backgroundColor: c.bgCard, elevation: 0, automaticallyImplyLeading: false,
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(s.title, style: GoogleFonts.pressStart2p(fontSize: 14, color: AutumnColors.mossGreen)),
+          Text(s.title, style: _appTextStyle(fontSize: 14, color: AutumnColors.mossGreen)),
           Text(DateFormat('EEEE, MMMM dd').format(selectedDate).toUpperCase(),
-              style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
+              style: _appTextStyle(fontSize: 7, color: c.textDisabled)),
         ]),
         actions: [
           IconButton(icon: const Icon(Icons.add_circle_outline, color: AutumnColors.mossGreen, size: 26),
@@ -542,7 +712,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
           if (allStreaks.isNotEmpty && filteredStreaks.length != allStreaks.length)
             Padding(padding: const EdgeInsets.only(bottom: 6),
                 child: Text(s.showing(filteredStreaks.length, allStreaks.length),
-                    style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled))),
+                    style: _appTextStyle(fontSize: 7, color: c.textDisabled))),
           AutumnButton(
               text: s.calendar,
               onPressed: () => _openCalendarPopup(selectedDate),
@@ -562,7 +732,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
           if (_message.isNotEmpty)
             Padding(padding: const EdgeInsets.only(bottom: 8),
                 child: Text(_message,
-                    style: GoogleFonts.pressStart2p(fontSize: 9, color: _messageColor),
+                    style: _appTextStyle(fontSize: 9, color: _messageColor),
                     textAlign: TextAlign.center)),
           if (isPast)
             Container(
@@ -573,9 +743,9 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: AutumnColors.accentGold.withValues(alpha: 0.4))),
                 child: Text(s.readOnly,
-                    style: GoogleFonts.pressStart2p(fontSize: 9, color: AutumnColors.accentGold),
+                    style: _appTextStyle(fontSize: 9, color: AutumnColors.accentGold),
                     textAlign: TextAlign.center)),
-          Text(s.todaysHabits, style: GoogleFonts.pressStart2p(
+          Text(s.todaysHabits, style: _appTextStyle(
               fontSize: 9, color: c.textDisabled, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           Builder(builder: (ctx) {
@@ -610,7 +780,17 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
     final habitId    = habit.id as int;
     final name       = habit.name as String;
     final category   = habit.category as String? ?? 'General';
+    final frequencyMode = habit.frequencyMode as HabitFrequencyMode? ?? HabitFrequencyMode.daily;
+    final weeklyTarget = habit.weeklyTarget as int? ?? 7;
+    final streakEntry = state.streakData.cast<HabitStreak?>().firstWhere(
+          (entry) => entry?.habitId == habitId,
+          orElse: () => null,
+        );
+    final currentProgress = streakEntry?.currentPeriodProgress ?? 0;
+    final currentTarget = streakEntry?.currentPeriodTarget ??
+        (frequencyMode == HabitFrequencyMode.daily ? 1 : weeklyTarget);
     final isCompleted = state.isCompleted(habitId);
+    final isTogglePending = state.isTogglePending(habitId);
     final accentColor = isCompleted ? AutumnColors.mossGreen : AutumnColors.accentOrange;
     final isToday    = state.isToday as bool;
     final animKey    = _keyFor(habitId);
@@ -648,7 +828,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
       child: HabitCompleteAnimation(
         key: animKey,
         child: Container(
-          height: 110,
+          constraints: const BoxConstraints(minHeight: 110),
           decoration: BoxDecoration(
               color: c.bgCard, borderRadius: BorderRadius.circular(12),
               border: Border.all(color: c.divider),
@@ -660,38 +840,70 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
                 borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(12), bottomLeft: Radius.circular(12)))),
             Expanded(child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Expanded(child: Text(name.toUpperCase(),
-                      style: GoogleFonts.pressStart2p(fontSize: 11,
+                      style: _appTextStyle(fontSize: 11,
                           color: c.textPrimary, fontWeight: FontWeight.bold))),
-                  Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                          color: isCompleted ? AutumnColors.mossGreen : c.bgSurface,
-                          borderRadius: BorderRadius.circular(11)),
-                      child: Text(isCompleted ? s.done : s.pending,
-                          style: GoogleFonts.pressStart2p(fontSize: 8,
-                              color: isCompleted ? c.bgCard : c.textDisabled))),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                        decoration: BoxDecoration(
+                            color: isCompleted ? AutumnColors.mossGreen : c.bgSurface,
+                            borderRadius: BorderRadius.circular(11)),
+                        child: Text(
+                          isCompleted ? s.done : s.pending,
+                          textAlign: TextAlign.center,
+                          style: _appTextStyle(fontSize: 8,
+                              color: isCompleted ? c.bgCard : c.textDisabled),
+                        )),
+                  ),
                 ]),
                 const SizedBox(height: 4),
-                Text(category, style: GoogleFonts.pressStart2p(fontSize: 9, color: c.textDisabled)),
+                Text(category, style: _appTextStyle(fontSize: 9, color: c.textDisabled)),
+                const SizedBox(height: 4),
+                Text(
+                  s.frequencySummary(frequencyMode, weeklyTarget),
+                  style: _appTextStyle(fontSize: 8, color: c.textDisabled),
+                ),
+                if (frequencyMode == HabitFrequencyMode.weekly) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    s.weeklyProgress(currentProgress, currentTarget),
+                    style: _appTextStyle(
+                      fontSize: 8,
+                      color: currentProgress >= currentTarget
+                          ? AutumnColors.mossGreen
+                          : AutumnColors.accentGold,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 8),
-                SizedBox(height: 34, child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: isCompleted ? AutumnColors.mossGreen : c.bgSurface,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-                    onPressed: isToday ? () async {
-                      if (!isCompleted) {
-                        animKey.currentState?.pulse();
-                        XpToast.show(context, amount: 10);
-                      }
-                      await ref.read(habitsProvider.notifier).toggleCompleted(habitId);
-                    } : null,
-                    child: Text(isCompleted ? s.completed : s.markDone,
-                        style: GoogleFonts.pressStart2p(fontSize: 9,
-                            color: isCompleted ? c.bgCard : AutumnColors.accentOrange)))),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(42),
+                    backgroundColor: isCompleted ? AutumnColors.mossGreen : c.bgSurface,
+                    disabledBackgroundColor:
+                        isCompleted ? AutumnColors.mossGreen : c.bgSurface,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                  onPressed: isToday && !isTogglePending ? () async {
+                    if (!isCompleted) {
+                      animKey.currentState?.pulse();
+                      XpToast.show(context, amount: 10);
+                    }
+                    await ref.read(habitsProvider.notifier).toggleCompleted(habitId);
+                  } : null,
+                  child: Text(
+                    isCompleted ? s.completed : s.markDone,
+                    textAlign: TextAlign.center,
+                    style: _appTextStyle(fontSize: 9,
+                        color: isCompleted ? c.bgCard : AutumnColors.accentOrange),
+                  ),
+                ),
               ]),
             )),
           ]),
@@ -731,54 +943,88 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
         Row(children: [
           const Icon(Icons.local_fire_department, color: AutumnColors.accentGold, size: 16),
           const SizedBox(width: 6),
-          Text(s.dailyStreaks, style: GoogleFonts.pressStart2p(
+          Text(s.dailyStreaks, style: _appTextStyle(
               fontSize: 10, color: AutumnColors.accentGold, fontWeight: FontWeight.bold)),
         ]),
         const SizedBox(height: 10),
         Row(children: [
           const Icon(Icons.ac_unit, color: AutumnColors.freeze, size: 14),
           const SizedBox(width: 4),
-          Text(s.freezes(freezes), style: GoogleFonts.pressStart2p(
+          Text(s.freezes(freezes), style: _appTextStyle(
               fontSize: 8,
               color: freezes > 0 ? AutumnColors.freeze : AutumnColors.accentRed,
               fontWeight: FontWeight.bold)),
         ]),
         const SizedBox(height: 8),
         if (streakData.isEmpty)
-          Text(s.noActiveHabits, style: GoogleFonts.pressStart2p(fontSize: 9, color: c.textDisabled))
+          Text(s.noActiveHabits, style: _appTextStyle(fontSize: 9, color: c.textDisabled))
         else
           ...streakData.map((st) {
             final statusKey   = _statusKeyToString(st.statusKey);
             final streak      = st.streak as int;
+            final frequencyMode = st.frequencyMode as HabitFrequencyMode? ?? HabitFrequencyMode.daily;
+            final progress = st.currentPeriodProgress as int? ?? 0;
+            final target = st.currentPeriodTarget as int? ?? 1;
             final daysToFreeze = st.daysToFreeze as int;
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 3),
-              child: Row(children: [
-                Expanded(flex: 3, child: Text((st.name as String).toUpperCase(),
-                    style: GoogleFonts.pressStart2p(fontSize: 7,
-                        color: c.textPrimary, fontWeight: FontWeight.bold),
-                    overflow: TextOverflow.ellipsis)),
-                SizedBox(width: 50, child: Row(children: [
-                  if (streak > 0) ...[
-                    const Icon(Icons.local_fire_department, color: AutumnColors.accentGold, size: 10),
-                    const SizedBox(width: 2),
-                    Text('${streak}d', style: GoogleFonts.pressStart2p(fontSize: 7, color: AutumnColors.accentGold)),
-                  ] else
-                    Text('—', style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
-                ])),
-                SizedBox(width: 64, child: Row(children: [
-                  Icon(statusIcons[statusKey] ?? Icons.schedule, color: statusColors[statusKey], size: 10),
-                  const SizedBox(width: 2),
-                  Text(statusLabels[statusKey] ?? '',
-                      style: GoogleFonts.pressStart2p(fontSize: 7, color: statusColors[statusKey])),
-                ])),
-                SizedBox(width: 52, child: Row(children: [
-                  const Icon(Icons.ac_unit, color: AutumnColors.freeze, size: 10),
-                  const SizedBox(width: 2),
-                  Text(daysToFreeze > 0 ? s.freezeIn(daysToFreeze) : s.freezeToday,
-                      style: GoogleFonts.pressStart2p(fontSize: 7, color: AutumnColors.freeze)),
-                ])),
-              ]),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    flex: 4,
+                    child: Text(
+                      (st.name as String).toUpperCase(),
+                      style: _appTextStyle(
+                        fontSize: 7,
+                        color: c.textPrimary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    flex: 2,
+                    child: _streakMetricChip(
+                      icon: Icons.local_fire_department,
+                      color: streak > 0 ? AutumnColors.accentGold : c.textDisabled,
+                      label: streak > 0
+                          ? (frequencyMode == HabitFrequencyMode.daily
+                              ? s.streakDays(streak)
+                              : s.streakWeeks(streak))
+                          : '—',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    flex: 3,
+                    child: _streakMetricChip(
+                      icon: statusIcons[statusKey] ?? Icons.schedule,
+                      color: statusColors[statusKey] ?? AutumnColors.accentGold,
+                      label: statusLabels[statusKey] ?? '',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    flex: 2,
+                    child: _streakMetricChip(
+                      icon: frequencyMode == HabitFrequencyMode.daily
+                          ? Icons.ac_unit
+                          : Icons.insights_rounded,
+                      color: frequencyMode == HabitFrequencyMode.daily
+                          ? AutumnColors.freeze
+                          : (progress >= target
+                              ? AutumnColors.mossGreen
+                              : AutumnColors.accentGold),
+                      label: frequencyMode == HabitFrequencyMode.daily
+                          ? (daysToFreeze > 0 ? s.freezeIn(daysToFreeze) : s.freezeToday)
+                          : '$progress/$target',
+                    ),
+                  ),
+                ],
+              ),
             );
           }),
       ]),
@@ -810,12 +1056,12 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
               child: Row(children: [
                 const Icon(Icons.filter_list_rounded, size: 16, color: AutumnColors.mossGreen),
                 const SizedBox(width: 8),
-                Text(s.filters, style: GoogleFonts.pressStart2p(fontSize: 8, color: AutumnColors.mossGreen)),
+                Text(s.filters, style: _appTextStyle(fontSize: 8, color: AutumnColors.mossGreen)),
                 if (activeFilters > 0) ...[
                   const SizedBox(width: 6),
                   Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(color: AutumnColors.mossGreen, borderRadius: BorderRadius.circular(10)),
-                      child: Text('$activeFilters', style: GoogleFonts.pressStart2p(fontSize: 7, color: Colors.white))),
+                      child: Text('$activeFilters', style: _appTextStyle(fontSize: 7, color: Colors.white))),
                 ],
                 const Spacer(),
                 if (activeFilters > 0)
@@ -824,7 +1070,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
                         _fStatus = 'TODOS'; _fCategory = null; _fFreq = 'TODAS'; _fSort = 'RACHA';
                       }),
                       child: Text(s.clear,
-                          style: GoogleFonts.pressStart2p(fontSize: 7, color: AutumnColors.accentRed))),
+                          style: _appTextStyle(fontSize: 7, color: AutumnColors.accentRed))),
                 const SizedBox(width: 8),
                 Icon(_filtersOpen ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
                     size: 18, color: c.textDisabled),
@@ -856,7 +1102,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(color: sel ? col : c.divider)),
                           child: Text(item['l'] as String, textAlign: TextAlign.center,
-                              style: GoogleFonts.pressStart2p(fontSize: 6,
+                              style: _appTextStyle(fontSize: 6,
                                   color: sel ? Colors.white : c.textSecondary)))));
                 }).toList()),
                 const SizedBox(height: 10),
@@ -879,7 +1125,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(color: sel ? col : c.divider)),
                           child: Text(item['l'] as String, textAlign: TextAlign.center,
-                              style: GoogleFonts.pressStart2p(fontSize: 6,
+                              style: _appTextStyle(fontSize: 6,
                                   color: sel ? Colors.white : c.textSecondary)))));
                 }).toList()),
                 if (cats.isNotEmpty) ...[
@@ -894,7 +1140,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
                                 color: _fCategory == null ? AutumnColors.mossGreen : c.bgSurface,
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(color: _fCategory == null ? AutumnColors.mossGreen : c.divider)),
-                            child: Text(s.allF, style: GoogleFonts.pressStart2p(fontSize: 7,
+                            child: Text(s.allF, style: _appTextStyle(fontSize: 7,
                                 color: _fCategory == null ? Colors.white : c.textSecondary)))),
                     ...cats.map((cat) {
                       final sel = _fCategory == cat;
@@ -905,7 +1151,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
                                   color: sel ? AutumnColors.mossGreen : c.bgSurface,
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(color: sel ? AutumnColors.mossGreen : c.divider)),
-                              child: Text(cat, style: GoogleFonts.pressStart2p(fontSize: 7,
+                              child: Text(cat, style: _appTextStyle(fontSize: 7,
                                   color: sel ? Colors.white : c.textSecondary))));
                     }),
                   ]),
@@ -934,7 +1180,7 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
                           child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                             Icon(ico, size: 11, color: sel ? Colors.white : c.textSecondary),
                             const SizedBox(width: 4),
-                            Text(l, style: GoogleFonts.pressStart2p(fontSize: 6,
+                            Text(l, style: _appTextStyle(fontSize: 6,
                                 color: sel ? Colors.white : c.textSecondary)),
                           ]))));
                 }).toList()),
@@ -946,5 +1192,5 @@ class _HabitsScreenState extends ConsumerState<HabitsScreen>
   }
 
   Widget _hfLabel(dynamic c, String t) =>
-      Text(t, style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled));
+      Text(t, style: _appTextStyle(fontSize: 7, color: c.textDisabled));
 }

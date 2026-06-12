@@ -2,7 +2,6 @@
 // 🗄️ TODOS REPOSITORY
 // ===========================
 
-import 'package:flutter/foundation.dart';
 import '../domain/todo.dart';
 import '../../../core/supabase/supabase_client.dart';
 

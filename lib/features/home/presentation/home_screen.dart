@@ -7,6 +7,7 @@ import '../../../core/supabase/supabase_client.dart';
 import '../../../core/theme/autumn_theme.dart';
 import '../../../core/theme/language_provider.dart';
 import '../../../core/services/widget_service.dart';
+import '../../habits/domain/habit.dart';
 import '../../habits/presentation/providers/habits_provider.dart';
 import '../../profile/presentation/profile_screen.dart';
 import '../../../core/services/notification_service.dart';
@@ -86,8 +87,6 @@ class _HomeS {
   String get newEvent        => isEs ? 'NUEVO EVENTO'          : 'NEW EVENT';
   String get nameLabel       => isEs ? 'NOMBRE'                : 'NAME';
   String get namePlaceholder => isEs ? 'Ej: Reunión de trabajo...' : 'E.g.: Work meeting...';
-  String get timeLabel       => isEs ? 'HORA (opcional)'       : 'TIME (optional)';
-  String get noTime          => isEs ? 'SIN HORA'              : 'NO TIME';
   String get categoryLabel   => isEs ? 'CATEGORÍA (opcional)'  : 'CATEGORY (optional)';
   String get notesLabel      => isEs ? 'NOTAS (opcional)'      : 'NOTES (optional)';
   String get notesPlaceholder=> isEs ? 'Detalles adicionales...' : 'Additional details...';
@@ -172,6 +171,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     return _HomeS(lang == AppLanguage.es);
   }
 
+  TextStyle _appTextStyle({
+    required double fontSize,
+    required Color color,
+    FontWeight? fontWeight,
+    double? height,
+  }) {
+    final typography = ref.watch(appTypographyProvider);
+    if (typography.mode == AppFontMode.legible) {
+      return GoogleFonts.atkinsonHyperlegible(
+        fontSize: fontSize,
+        color: color,
+        fontWeight: fontWeight,
+        height: height,
+      );
+    }
+    return GoogleFonts.pressStart2p(
+      fontSize: fontSize,
+      color: color,
+      fontWeight: fontWeight,
+      height: height,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -195,11 +217,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       _loadDeadlines(),
       _loadCalendarEvents(),
     ]);
-    Future.delayed(const Duration(milliseconds: 600), () {
-      if (mounted) {
-        _checkFreezeNotification();
-      }
-    });
+    if (mounted) {
+      await _checkFreezeNotification();
+    }
   }
 
   Future<void> _loadAllStats() async {
@@ -424,26 +444,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     String? notes,
     String? category,
     NotificationConfig? notifConfig,
+    String? repeatMode,
     List<int>? repeatWeekdays,
     DateTime? repeatUntil,
   }) async {
     try {
-      final hasRepeat     = repeatWeekdays != null && repeatWeekdays.isNotEmpty;
+      final hasRepeat = repeatMode != null;
       final repeatGroupId = hasRepeat ? DateTime.now().millisecondsSinceEpoch : null;
-      final dates         = <String>[];
-
-      if (!hasRepeat) {
-        dates.add(date);
-      } else {
-        var current = DateTime.parse(date);
-        final endDate = repeatUntil ?? DateTime.parse(date).add(const Duration(days: 365));
-        while (!current.isAfter(endDate)) {
-          if (repeatWeekdays.contains(current.weekday)) {
-            dates.add(current.toIso8601String().substring(0, 10));
-          }
-          current = current.add(const Duration(days: 1));
-        }
-      }
+      final dates = hasRepeat
+          ? _buildRecurringDates(
+              startDate: DateTime.parse(date),
+              repeatMode: repeatMode,
+              repeatWeekdays: repeatWeekdays ?? const [],
+              repeatUntil: repeatUntil,
+            )
+          : <String>[date];
 
       if (dates.isEmpty) {
         return;
@@ -462,18 +477,139 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         }).select('id').single();
 
         final eventId = result['id'] as int;
-        if (notifConfig != null && notifConfig.enabled && d == dates.first) {
+        if (notifConfig != null && notifConfig.enabled) {
           try {
             await NotificationService().scheduleCalendarEventNotification(
               eventId: eventId, title: title.trim(), date: d, time: time,
               notifConfig: notifConfig.toConfigMap(),
               notes: notes?.trim().isNotEmpty == true ? notes!.trim() : null,
             );
-          } catch (_) {}
+          } catch (e) {
+            debugPrint('calendar notification schedule failed for $eventId: $e');
+          }
         }
       }
       await _loadCalendarEvents();
     } catch (e) { debugPrint('createCalendarEvent error: $e'); }
+  }
+
+  List<String> _buildRecurringDates({
+    required DateTime startDate,
+    required String repeatMode,
+    required List<int> repeatWeekdays,
+    DateTime? repeatUntil,
+  }) {
+    final normalizedStart =
+        DateTime(startDate.year, startDate.month, startDate.day);
+    final endDate = _resolveRepeatEndDate(
+      startDate: normalizedStart,
+      repeatMode: repeatMode,
+      repeatUntil: repeatUntil,
+    );
+
+    switch (repeatMode) {
+      case 'weekly':
+        if (repeatWeekdays.isEmpty) {
+          return const [];
+        }
+        final selected = repeatWeekdays.toSet();
+        final dates = <String>[];
+        var current = normalizedStart;
+        while (!current.isAfter(endDate)) {
+          if (selected.contains(current.weekday)) {
+            dates.add(current.toIso8601String().substring(0, 10));
+          }
+          current = current.add(const Duration(days: 1));
+        }
+        return dates;
+      case 'monthly':
+        return _buildMonthlyDates(normalizedStart, endDate);
+      case 'yearly':
+        return _buildYearlyDates(normalizedStart, endDate);
+      default:
+        return <String>[normalizedStart.toIso8601String().substring(0, 10)];
+    }
+  }
+
+  DateTime _resolveRepeatEndDate({
+    required DateTime startDate,
+    required String repeatMode,
+    required DateTime? repeatUntil,
+  }) {
+    if (repeatUntil != null) {
+      return DateTime(repeatUntil.year, repeatUntil.month, repeatUntil.day);
+    }
+
+    switch (repeatMode) {
+      case 'monthly':
+        return _addMonthsClamped(startDate, 24);
+      case 'yearly':
+        return _addYearsClamped(startDate, 5);
+      case 'weekly':
+      default:
+        return startDate.add(const Duration(days: 365));
+    }
+  }
+
+  List<String> _buildMonthlyDates(DateTime startDate, DateTime endDate) {
+    final dates = <String>[];
+    var current = startDate;
+    while (!current.isAfter(endDate)) {
+      dates.add(current.toIso8601String().substring(0, 10));
+      current = _addMonthsClamped(current, 1, originalDay: startDate.day);
+    }
+    return dates;
+  }
+
+  List<String> _buildYearlyDates(DateTime startDate, DateTime endDate) {
+    final dates = <String>[];
+    var current = startDate;
+    while (!current.isAfter(endDate)) {
+      dates.add(current.toIso8601String().substring(0, 10));
+      current = _addYearsClamped(
+        current,
+        1,
+        originalMonth: startDate.month,
+        originalDay: startDate.day,
+      );
+    }
+    return dates;
+  }
+
+  DateTime _addMonthsClamped(
+    DateTime source,
+    int months, {
+    int? originalDay,
+  }) {
+    final targetMonthIndex = source.month - 1 + months;
+    final targetYear = source.year + (targetMonthIndex ~/ 12);
+    final targetMonth = (targetMonthIndex % 12) + 1;
+    final lastDay = DateTime(targetYear, targetMonth + 1, 0).day;
+    final targetDay = _clampDay(originalDay ?? source.day, lastDay);
+    return DateTime(targetYear, targetMonth, targetDay);
+  }
+
+  DateTime _addYearsClamped(
+    DateTime source,
+    int years, {
+    int? originalMonth,
+    int? originalDay,
+  }) {
+    final targetYear = source.year + years;
+    final month = originalMonth ?? source.month;
+    final lastDay = DateTime(targetYear, month + 1, 0).day;
+    final day = _clampDay(originalDay ?? source.day, lastDay);
+    return DateTime(targetYear, month, day);
+  }
+
+  int _clampDay(int day, int lastDay) {
+    if (day < 1) {
+      return 1;
+    }
+    if (day > lastDay) {
+      return lastDay;
+    }
+    return day;
   }
 
   Future<void> _deleteCalendarEvent(int id) async {
@@ -503,28 +639,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   Future<void> _checkFreezeNotification() async {
     try {
-      final prefs     = await SharedPreferences.getInstance();
-      final today     = DateTime.now().toIso8601String().substring(0, 10);
-      final lastShown = prefs.getString('freeze_popup_shown_${widget.userId}') ?? '';
+      final prefs = await SharedPreferences.getInstance();
+      final today = DateTime.now().toIso8601String().substring(0, 10);
+      final lastShown =
+          prefs.getString('freeze_popup_v2_shown_${widget.userId}') ?? '';
       if (lastShown == today) {
         return;
       }
       final habitsNotifier = ref.read(habitsProvider.notifier);
-      final habitsState    = ref.read(habitsProvider);
-      final missing = await habitsNotifier.getMissingYesterday();
-      if (missing.isNotEmpty && habitsState.freezes > 0 && mounted) {
-        await prefs.setString('freeze_popup_shown_${widget.userId}', today);
-        _showFreezePopup(habitsState.freezes, missing);
+      final promptData =
+          await habitsNotifier.getFreezePromptData(userId: widget.userId);
+      if (promptData.pending.isNotEmpty &&
+          promptData.freezes > 0 &&
+          mounted) {
+        await prefs.setString(
+          'freeze_popup_v2_shown_${widget.userId}',
+          today,
+        );
+        _showFreezePopup(promptData.freezes, promptData.pending);
       }
     } catch (e) { debugPrint('checkFreezeNotification error: $e'); }
   }
 
-  void _showFreezePopup(int freezes, List<({int id, String name})> missingHabits) {
+  void _showFreezePopup(int freezes, List<PendingHabitFreeze> missingHabits) {
     final c           = context.ac;
     final s           = _s;
-    final yesterday   = DateTime.now().subtract(const Duration(days: 1));
-    final yesterdayStr = DateFormat('EEEE dd').format(yesterday).toUpperCase();
     final freezesLeft = [freezes];
+    final pendingHabits = [...missingHabits];
+    final applyingKeys = <String>{};
+
+    String freezeKey(PendingHabitFreeze h) =>
+        '${h.habitId}:${h.freezeDate.toIso8601String().substring(0, 10)}';
 
     showDialog(
       context: context,
@@ -534,7 +679,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         title: Text(s.useFreeze,
             style: GoogleFonts.pressStart2p(color: AutumnColors.freeze, fontSize: 10)),
         content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(s.freezeMissed(yesterdayStr),
+          Text(s.freezeMissed(''),
               style: GoogleFonts.pressStart2p(fontSize: 9, color: c.textSecondary),
               textAlign: TextAlign.center),
           const SizedBox(height: 4),
@@ -542,24 +687,65 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               style: GoogleFonts.pressStart2p(fontSize: 9, color: AutumnColors.freeze),
               textAlign: TextAlign.center),
           const SizedBox(height: 12),
-          ...missingHabits.map((h) => Padding(
+          ...pendingHabits.map((h) {
+            final key = freezeKey(h);
+            final isApplying = applyingKeys.contains(key);
+            return Padding(
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(children: [
-                Expanded(child: Text(h.name.toUpperCase(),
-                    style: GoogleFonts.pressStart2p(fontSize: 9, color: c.textPrimary))),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(h.name.toUpperCase(),
+                          style: GoogleFonts.pressStart2p(fontSize: 9, color: c.textPrimary)),
+                      const SizedBox(height: 4),
+                      Text(
+                        h.isWeekly ? 'Semana: ${h.periodLabel}' : h.periodLabel,
+                        style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled),
+                      ),
+                    ],
+                  ),
+                ),
                 StatefulBuilder(builder: (_, __) => ElevatedButton(
                     style: ElevatedButton.styleFrom(backgroundColor: AutumnColors.freeze,
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
-                    onPressed: freezesLeft[0] > 0 ? () async {
-                      final ok = await ref.read(habitsProvider.notifier).applyManualFreeze(h.id);
+                    onPressed: freezesLeft[0] > 0 && !isApplying ? () async {
+                      applyingKeys.add(key);
+                      setDlg(() {});
+                      final ok = await ref
+                          .read(habitsProvider.notifier)
+                          .applyManualFreezeForDate(
+                            h.habitId,
+                            h.freezeDate,
+                            userId: widget.userId,
+                          );
+                      if (!mounted || !ctx.mounted) {
+                        return;
+                      }
                       if (ok) {
                         freezesLeft[0]--;
+                        pendingHabits.removeWhere((item) => freezeKey(item) == key);
+                        setDlg(() {});
+                        await _loadAllStats();
+                      } else {
+                        applyingKeys.remove(key);
                         setDlg(() {});
                       }
                     } : null,
-                    child: Text(freezesLeft[0] > 0 ? '❄ FREEZE' : s.noFreezes,
-                        style: GoogleFonts.pressStart2p(fontSize: 8, color: Colors.white)))),
-              ]))),
+                    child: isApplying
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(freezesLeft[0] > 0 ? '❄ FREEZE' : s.noFreezes,
+                            style: GoogleFonts.pressStart2p(fontSize: 8, color: Colors.white)))),
+              ]));
+          }),
         ])),
         actions: [
           TextButton(onPressed: () {
@@ -614,7 +800,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 title: Row(children: [
                   Image.asset('assets/images/acorn.png', width: 18, height: 18),
                   const SizedBox(width: 8),
-                  Text('LifeXP', style: GoogleFonts.pressStart2p(fontSize: 14, color: AutumnColors.accentOrange)),
+                  Text('LifeXP', style: _appTextStyle(fontSize: 14, color: AutumnColors.accentOrange)),
                 ])),
             actions: [
               IconButton(
@@ -630,7 +816,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(dateStr, style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
+                Text(dateStr, style: _appTextStyle(fontSize: 7, color: c.textDisabled)),
                 const SizedBox(height: 14),
                 _buildTreeHero(context, xpProgress, s),
                 const SizedBox(height: 16),
@@ -811,7 +997,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final objs         = (results[2] as List).map((o) => o['title'] as String).toList();
     final dayOwnEvents = _ownEvents.where((e) => e.date == dateKey).toList();
 
-    if (!mounted) {
+    if (!context.mounted) {
       return;
     }
 
@@ -841,7 +1027,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       GestureDetector(
                         onTap: () => _openAddEventDialog(context, dateKey, onAdded: () async {
                           await _loadCalendarEvents();
-                          if (!mounted) {
+                          if (!ctx.mounted || !context.mounted) {
                             return;
                           }
                           Navigator.pop(ctx);
@@ -952,12 +1138,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final s    = _s;
     final titleCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
-    TimeOfDay? selectedTime;
     String?    selectedCategory;
     NotificationConfig notifConfig = const NotificationConfig();
 
     final Set<int> selectedWeekdays = {};
     bool      repeatEnabled = false;
+    String    repeatMode    = 'weekly';
     DateTime? repeatUntil;
     bool      neverEnds     = false;
 
@@ -1007,52 +1193,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
                           borderSide: const BorderSide(color: eventColor, width: 1.5)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  Text(s.timeLabel, style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
-                  const SizedBox(height: 6),
-                  GestureDetector(
-                    onTap: () async {
-                      final picked = await showTimePicker(
-                          context: ctx, initialTime: TimeOfDay.now(),
-                          builder: (ctx2, child) => Theme(
-                            data: ThemeData.light().copyWith(
-                              colorScheme: const ColorScheme.light(primary: eventColor, onPrimary: Colors.white),
-                              timePickerTheme: TimePickerThemeData(
-                                backgroundColor: c.bgCard,
-                                hourMinuteTextStyle: GoogleFonts.pressStart2p(fontSize: 32),
-                                dayPeriodTextStyle: GoogleFonts.pressStart2p(fontSize: 10),
-                              ),
-                            ),
-                            child: child!,
-                          ));
-                      if (picked != null) setDlg(() => selectedTime = picked);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      decoration: BoxDecoration(color: c.bgSurface, borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                              color: selectedTime != null ? eventColor : c.divider,
-                              width: selectedTime != null ? 1.5 : 1)),
-                      child: Row(children: [
-                        Icon(Icons.access_time_rounded, size: 14,
-                            color: selectedTime != null ? eventColor : c.textDisabled),
-                        const SizedBox(width: 10),
-                        Text(
-                          selectedTime != null
-                              ? '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}'
-                              : s.noTime,
-                          style: GoogleFonts.pressStart2p(fontSize: 9,
-                              color: selectedTime != null ? c.textPrimary : c.textDisabled),
-                        ),
-                        const Spacer(),
-                        if (selectedTime != null)
-                          GestureDetector(
-                              onTap: () => setDlg(() => selectedTime = null),
-                              child: Icon(Icons.close, size: 14, color: c.textDisabled)),
-                      ]),
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -1112,31 +1252,90 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
                   if (repeatEnabled) ...[
                     const SizedBox(height: 10),
-                    Text(s.daysLabel, style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
+                    Text('Tipo de repeticion', style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
                     const SizedBox(height: 8),
-                    Row(children: List.generate(7, (i) {
-                      final day      = i + 1;
-                      final selected = selectedWeekdays.contains(day);
-                      final isWeekend = day == 6 || day == 7;
-                      final dayColor  = isWeekend ? AutumnColors.accentRed : eventColor;
-                      return Expanded(child: GestureDetector(
-                        onTap: () => setDlg(() {
-                          if (selected) { selectedWeekdays.remove(day); } else { selectedWeekdays.add(day); }
-                        }),
-                        child: AnimatedContainer(duration: const Duration(milliseconds: 130),
-                          margin: const EdgeInsets.only(right: 4), height: 36,
-                          decoration: BoxDecoration(
-                              color: selected ? dayColor : c.bgSurface,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: selected ? dayColor : c.divider)),
-                          child: Center(child: Text(weekdayLabels[i],
-                              style: GoogleFonts.pressStart2p(fontSize: 7,
-                                  color: selected ? Colors.white : c.textSecondary,
-                                  fontWeight: selected ? FontWeight.bold : FontWeight.normal))),
+                    Row(
+                      children: [
+                        for (final mode in const [
+                          {'value': 'weekly', 'label': 'SEMANAL'},
+                          {'value': 'monthly', 'label': 'MENSUAL'},
+                          {'value': 'yearly', 'label': 'ANUAL'},
+                        ])
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => setDlg(() {
+                                repeatMode = mode['value']!;
+                              }),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 130),
+                                height: 38,
+                                margin: const EdgeInsets.only(right: 6),
+                                decoration: BoxDecoration(
+                                  color: repeatMode == mode['value']
+                                      ? eventColor
+                                      : c.bgSurface,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: repeatMode == mode['value']
+                                        ? eventColor
+                                        : c.divider,
+                                  ),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    mode['label']!,
+                                    style: GoogleFonts.pressStart2p(
+                                      fontSize: 7,
+                                      color: repeatMode == mode['value']
+                                          ? Colors.white
+                                          : c.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    if (repeatMode == 'weekly') ...[
+                      Text(s.daysLabel, style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
+                      const SizedBox(height: 8),
+                      Row(children: List.generate(7, (i) {
+                        final day      = i + 1;
+                        final selected = selectedWeekdays.contains(day);
+                        final isWeekend = day == 6 || day == 7;
+                        final dayColor  = isWeekend ? AutumnColors.accentRed : eventColor;
+                        return Expanded(child: GestureDetector(
+                          onTap: () => setDlg(() {
+                            if (selected) { selectedWeekdays.remove(day); } else { selectedWeekdays.add(day); }
+                          }),
+                          child: AnimatedContainer(duration: const Duration(milliseconds: 130),
+                            margin: const EdgeInsets.only(right: 4), height: 36,
+                            decoration: BoxDecoration(
+                                color: selected ? dayColor : c.bgSurface,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: selected ? dayColor : c.divider)),
+                            child: Center(child: Text(weekdayLabels[i],
+                                style: GoogleFonts.pressStart2p(fontSize: 7,
+                                    color: selected ? Colors.white : c.textSecondary,
+                                    fontWeight: selected ? FontWeight.bold : FontWeight.normal))),
+                          ),
+                        ));
+                      })),
+                      const SizedBox(height: 12),
+                    ] else ...[
+                      Text(
+                        repeatMode == 'monthly'
+                            ? 'Se repetira cada mes en esta fecha'
+                            : 'Se repetira cada ano en esta fecha',
+                        style: GoogleFonts.pressStart2p(
+                          fontSize: 7,
+                          color: c.textDisabled,
                         ),
-                      ));
-                    })),
-                    const SizedBox(height: 12),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
 
                     GestureDetector(
                       onTap: () => setDlg(() { neverEnds = !neverEnds; if (neverEnds) repeatUntil = null; }),
@@ -1219,21 +1418,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                        if (titleCtrl.text.trim().isEmpty) {
                          return;
                        }
-                       if (repeatEnabled && selectedWeekdays.isEmpty) {
+                       if (repeatEnabled &&
+                           repeatMode == 'weekly' &&
+                           selectedWeekdays.isEmpty) {
                          return;
                        }
                        if (repeatEnabled && !neverEnds && repeatUntil == null) {
                          return;
                        }
                        Navigator.pop(ctx);
-                        final timeStr = selectedTime != null
-                            ? '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}:00'
-                            : null;
                       await _createCalendarEvent(
-                        title: titleCtrl.text, date: date, time: timeStr,
+                        title: titleCtrl.text, date: date,
                         notes: notesCtrl.text, category: selectedCategory,
                         notifConfig: notifConfig,
-                        repeatWeekdays: repeatEnabled ? selectedWeekdays.toList() : null,
+                        repeatMode: repeatEnabled ? repeatMode : null,
+                        repeatWeekdays: repeatEnabled && repeatMode == 'weekly'
+                            ? selectedWeekdays.toList()
+                            : null,
                         repeatUntil: repeatEnabled && !neverEnds ? repeatUntil : null,
                       );
                       onAdded();
@@ -1367,12 +1568,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(color: AutumnColors.accentOrange, borderRadius: BorderRadius.circular(8)),
                 child: Text('LVL $_level',
-                    style: GoogleFonts.pressStart2p(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold))),
+                    style: _appTextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold))),
             const SizedBox(width: 10),
             Expanded(child: Text(_levelTitle,
-                style: GoogleFonts.pressStart2p(fontSize: 8, color: AutumnColors.mossGreen))),
+                style: _appTextStyle(fontSize: 8, color: AutumnColors.mossGreen))),
             Text('$_totalXp XP total',
-                style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
+                style: _appTextStyle(fontSize: 7, color: c.textDisabled)),
           ]),
         ),
         SizedBox(height: 200, child: Stack(alignment: Alignment.center, children: [
@@ -1399,8 +1600,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         ])),
         Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 14), child: Column(children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text(_nextMilestoneHint(), style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
-            Text('$_currentXp / $_xpForNext XP', style: GoogleFonts.pressStart2p(fontSize: 7, color: AutumnColors.accentOrange)),
+            Text(_nextMilestoneHint(), style: _appTextStyle(fontSize: 7, color: c.textDisabled)),
+            Text('$_currentXp / $_xpForNext XP', style: _appTextStyle(fontSize: 7, color: AutumnColors.accentOrange)),
           ]),
           const SizedBox(height: 6),
           ClipRRect(borderRadius: BorderRadius.circular(6), child: Stack(children: [
@@ -1410,7 +1611,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 child: Container(height: 14, decoration: const BoxDecoration(
                     gradient: LinearGradient(colors: [AutumnColors.accentOrange, AutumnColors.accentGold])))),
             SizedBox(height: 14, child: Center(child: Text('${(xpProgress * 100).round()}%',
-                style: GoogleFonts.pressStart2p(fontSize: 7,
+                style: _appTextStyle(fontSize: 7,
                     color: xpProgress > 0.3 ? Colors.white : c.textDisabled)))),
           ])),
         ])),
@@ -1441,9 +1642,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         Text(emoji, style: const TextStyle(fontSize: 20)),
         const SizedBox(height: 5),
-        Text(value, style: GoogleFonts.pressStart2p(fontSize: 15, color: color, fontWeight: FontWeight.bold)),
+        Text(value, style: _appTextStyle(fontSize: 15, color: color, fontWeight: FontWeight.bold)),
         const SizedBox(height: 4),
-        Text(label, style: GoogleFonts.pressStart2p(fontSize: 6, color: c.textDisabled), textAlign: TextAlign.center),
+        Text(label, style: _appTextStyle(fontSize: 6, color: c.textDisabled), textAlign: TextAlign.center),
       ]),
     );
   }
@@ -1459,7 +1660,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           const Text('🌿', style: TextStyle(fontSize: 16)),
           const SizedBox(width: 10),
           Expanded(child: Text(s.noDeadlines,
-              style: GoogleFonts.pressStart2p(fontSize: 8, color: AutumnColors.mossGreen))),
+              style: _appTextStyle(fontSize: 8, color: AutumnColors.mossGreen))),
         ])
             : Column(children: _deadlines.take(5).map((d) => _deadlineRow(context, d, s)).toList()));
   }
@@ -1496,12 +1697,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     return Padding(padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(children: [
           Expanded(child: Text(title.length > 30 ? '${title.substring(0, 30)}…' : title,
-              style: GoogleFonts.pressStart2p(fontSize: 8, color: c.textPrimary))),
+              style: _appTextStyle(fontSize: 8, color: c.textPrimary))),
           Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(color: color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: color.withValues(alpha: 0.4))),
-              child: Text(label, style: GoogleFonts.pressStart2p(fontSize: 7, color: color))),
+              child: Text(label, style: _appTextStyle(fontSize: 7, color: color))),
         ]));
   }
 
@@ -1511,7 +1712,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       Container(width: 3, height: 14,
           decoration: BoxDecoration(color: AutumnColors.accentOrange, borderRadius: BorderRadius.circular(2))),
       const SizedBox(width: 8),
-      Text(text, style: GoogleFonts.pressStart2p(fontSize: 8, color: c.textDisabled, fontWeight: FontWeight.bold)),
+      Text(text, style: _appTextStyle(fontSize: 8, color: c.textDisabled, fontWeight: FontWeight.bold)),
     ]);
   }
 }

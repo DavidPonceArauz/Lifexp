@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/autumn_theme.dart';
 import '../../../core/theme/language_provider.dart';
-import '../../../core/widgets/autumn_widgets.dart';
 import '../../../core/widgets/notification_config_widget.dart';
 import '../../../core/services/notification_service.dart';
 import '../domain/todo.dart';
@@ -38,6 +36,7 @@ class _TodoS {
   String get category         => isEs ? 'CATEGORIA (opcional)'    : 'CATEGORY (optional)';
   String get description      => isEs ? 'DESCRIPCION (opcional)'  : 'DESCRIPTION (optional)';
   String get descTap          => isEs ? 'Toca para añadir descripción...' : 'Tap to add description...';
+  String get descEditHint     => isEs ? 'Toca para abrir checklist' : 'Tap to open checklist editor';
   String get reminder         => isEs ? 'RECORDATORIO (opcional)' : 'REMINDER (optional)';
   String get cancel           => isEs ? 'CANCELAR'                : 'CANCEL';
   String get save             => isEs ? 'GUARDAR'                 : 'SAVE';
@@ -132,6 +131,26 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
 
   bool _filtersOpen = false;
   static const _pColors = {3: AutumnColors.accentRed, 2: AutumnColors.accentGold, 1: AutumnColors.mossGreen};
+
+  TextStyle _appTextStyle({
+    required double fontSize,
+    required Color color,
+    FontWeight? fontWeight,
+  }) {
+    final typography = ref.watch(appTypographyProvider);
+    if (typography.mode == AppFontMode.legible) {
+      return GoogleFonts.atkinsonHyperlegible(
+        fontSize: fontSize,
+        color: color,
+        fontWeight: fontWeight,
+      );
+    }
+    return GoogleFonts.pressStart2p(
+      fontSize: fontSize,
+      color: color,
+      fontWeight: fontWeight,
+    );
+  }
 
   Map<String, dynamic> _deadlineInfo(String? deadline, _TodoS s) {
     if (deadline == null || deadline.isEmpty) return {'text': '', 'color': AutumnColors.textDisabled};
@@ -261,6 +280,7 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
                 _lbl(c, s.description),
                 GestureDetector(
                   onTap: () async {
+                    FocusScope.of(ctx).unfocus();
                     final result = await showRichEditorSheet(context,
                         initialJson: descJson,
                         title: titleCtrl.text.isNotEmpty ? titleCtrl.text : s.descLabel,
@@ -309,10 +329,11 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
                   onPressed: () async {
                     if (titleCtrl.text.trim().isEmpty) return;
                     final pm = priorityValues;
+                    FocusScope.of(ctx).unfocus();
                     Navigator.pop(ctx);
                     int savedId;
                     if (isEdit) {
-                      await ref.read(todosProvider.notifier).updateTodo(todo!.id,
+                      await ref.read(todosProvider.notifier).updateTodo(todo.id,
                           title: titleCtrl.text, description: descJson,
                           priority: pm[priority] ?? 2, deadline: deadline,
                           category: selectedCategory);
@@ -370,163 +391,201 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
       'done':        AutumnColors.mossGreen,
     };
 
-    final quillCtrl = QuillController(
-      document: quillDocumentFromJson(todo.description),
-      selection: const TextSelection.collapsed(offset: 0),
-    );
-    final focusNode = FocusNode();
+    String descJson = todo.description;
 
     showDialog(
       context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: c.bgCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-        child: SizedBox(
-          width: 380,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(width: double.infinity, padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                    color: (_pColors[todo.priority] ?? AutumnColors.accentOrange).withValues(alpha: 0.1),
-                    borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(16), topRight: Radius.circular(16)),
-                    border: Border(bottom: BorderSide(
-                        color: (_pColors[todo.priority] ?? AutumnColors.accentOrange).withValues(alpha: 0.3)))),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                            color: priorityColors[priorityLabels[todo.priority]] ?? AutumnColors.accentOrange,
-                            borderRadius: BorderRadius.circular(6)),
-                        child: Text(priorityLabels[todo.priority] ?? '',
-                            style: GoogleFonts.pressStart2p(fontSize: 7, color: c.bgCard))),
-                    const SizedBox(width: 8),
-                    Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                            color: (statusColors[todo.status] ?? AutumnColors.accentOrange).withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                                color: (statusColors[todo.status] ?? AutumnColors.accentOrange).withValues(alpha: 0.5))),
-                        child: Text(statusLabels[todo.status] ?? todo.status,
-                            style: GoogleFonts.pressStart2p(fontSize: 7,
-                                color: statusColors[todo.status] ?? AutumnColors.accentOrange))),
-                    const Spacer(),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) {
+          final hasDesc = quillJsonToPlainText(descJson).isNotEmpty;
+          return Dialog(
+            backgroundColor: c.bgCard,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+            child: SizedBox(
+              width: 380,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Container(width: double.infinity, padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                        color: (_pColors[todo.priority] ?? AutumnColors.accentOrange).withValues(alpha: 0.1),
+                        borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(16), topRight: Radius.circular(16)),
+                        border: Border(bottom: BorderSide(
+                            color: (_pColors[todo.priority] ?? AutumnColors.accentOrange).withValues(alpha: 0.3)))),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Row(children: [
+                        Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                                color: priorityColors[priorityLabels[todo.priority]] ?? AutumnColors.accentOrange,
+                                borderRadius: BorderRadius.circular(6)),
+                            child: Text(priorityLabels[todo.priority] ?? '',
+                                style: GoogleFonts.pressStart2p(fontSize: 7, color: c.bgCard))),
+                        const SizedBox(width: 8),
+                        Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                                color: (statusColors[todo.status] ?? AutumnColors.accentOrange).withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                    color: (statusColors[todo.status] ?? AutumnColors.accentOrange).withValues(alpha: 0.5))),
+                            child: Text(statusLabels[todo.status] ?? todo.status,
+                                style: GoogleFonts.pressStart2p(fontSize: 7,
+                                    color: statusColors[todo.status] ?? AutumnColors.accentOrange))),
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () => Navigator.pop(ctx),
+                          child: Icon(Icons.close, color: c.textDisabled, size: 20),
+                        ),
+                      ]),
+                      const SizedBox(height: 12),
+                      Text(todo.title.toUpperCase(),
+                          style: GoogleFonts.pressStart2p(
+                              fontSize: 12, color: c.textPrimary, fontWeight: FontWeight.bold)),
+                    ])),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(s.descLabel,
+                        style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
+                    const SizedBox(height: 6),
                     GestureDetector(
-                      onTap: () {
-                        final newJson = quillDeltaToJson(quillCtrl.document);
-                        if (newJson != todo.description) {
-                          ref.read(todosProvider.notifier).updateTodo(
-                            todo.id, title: todo.title, description: newJson,
-                            priority: todo.priority, deadline: todo.deadline,
-                            category: todo.category,
-                          );
+                      onTap: () async {
+                        final result = await showRichEditorSheet(
+                          context,
+                          initialJson: descJson,
+                          title: todo.title,
+                          accentColor: AutumnColors.accentOrange,
+                        );
+                        if (result == null || result == descJson) {
+                          return;
                         }
-                        quillCtrl.dispose();
-                        focusNode.dispose();
-                        Navigator.pop(ctx);
+                        await ref.read(todosProvider.notifier).updateTodo(
+                              todo.id,
+                              title: todo.title,
+                              description: result,
+                              priority: todo.priority,
+                              deadline: todo.deadline,
+                              category: todo.category,
+                            );
+                        if (!mounted || !ctx.mounted) {
+                          return;
+                        }
+                        setDlg(() => descJson = result);
                       },
-                      child: Icon(Icons.close, color: c.textDisabled, size: 20),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: c.bgSurface,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: hasDesc ? AutumnColors.accentOrange : c.divider,
+                            width: hasDesc ? 1.5 : 1,
+                          ),
+                        ),
+                        child: Row(children: [
+                          Icon(
+                            Icons.checklist_rtl_rounded,
+                            size: 16,
+                            color: hasDesc ? AutumnColors.accentOrange : c.textDisabled,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  hasDesc
+                                      ? quillJsonToPlainText(descJson)
+                                      : s.descTap,
+                                  style: GoogleFonts.pressStart2p(
+                                    fontSize: 8,
+                                    color: hasDesc ? c.textPrimary : c.textDisabled,
+                                  ),
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  s.descEditHint,
+                                  style: GoogleFonts.pressStart2p(
+                                    fontSize: 6,
+                                    color: AutumnColors.accentOrange.withValues(alpha: 0.8),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ]),
+                      ),
                     ),
                   ]),
-                  const SizedBox(height: 12),
-                  Text(todo.title.toUpperCase(),
-                      style: GoogleFonts.pressStart2p(
-                          fontSize: 12, color: c.textPrimary, fontWeight: FontWeight.bold)),
-                ])),
-            if (todo.description.isNotEmpty) ...[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
-                child: Text(s.descLabel,
-                    style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
-              ),
-              const SizedBox(height: 6),
-              Container(
-                constraints: const BoxConstraints(maxHeight: 220),
-                margin: const EdgeInsets.symmetric(horizontal: 18),
-                decoration: BoxDecoration(
-                  color: c.bgSurface,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: c.divider),
                 ),
-                child: QuillEditor(
-                  controller: quillCtrl,
-                  focusNode: focusNode,
-                  scrollController: ScrollController(),
-                  config: const QuillEditorConfig(
-                    scrollable: true, autoFocus: false, expands: false,
-                    padding: EdgeInsets.all(12), placeholder: '',
-                  ),
-                ),
-              ),
-            ],
-            Padding(padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(s.dateLabel,
-                          style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
-                      const SizedBox(height: 4),
+                Padding(padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Row(children: [
-                        Icon(Icons.calendar_today_rounded, size: 12, color: di['color'] as Color),
-                        const SizedBox(width: 6),
-                        Text(todo.deadline ?? s.noDate,
-                            style: GoogleFonts.pressStart2p(fontSize: 9, color: di['color'] as Color)),
+                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(s.dateLabel,
+                              style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
+                          const SizedBox(height: 4),
+                          Row(children: [
+                            Icon(Icons.calendar_today_rounded, size: 12, color: di['color'] as Color),
+                            const SizedBox(width: 6),
+                            Text(todo.deadline ?? s.noDate,
+                                style: GoogleFonts.pressStart2p(fontSize: 9, color: di['color'] as Color)),
+                          ]),
+                        ])),
+                        if ((di['text'] as String).isNotEmpty && todo.status != 'done')
+                          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                  color: (di['color'] as Color).withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: (di['color'] as Color).withValues(alpha: 0.4))),
+                              child: Text(di['text'] as String,
+                                  style: GoogleFonts.pressStart2p(fontSize: 8, color: di['color'] as Color))),
                       ]),
+                      if (todo.createdAt.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Text(s.createdLabel,
+                            style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
+                        const SizedBox(height: 4),
+                        Text(todo.createdAt.substring(0, 10),
+                            style: GoogleFonts.pressStart2p(fontSize: 8, color: c.textDisabled)),
+                      ],
                     ])),
-                    if ((di['text'] as String).isNotEmpty && todo.status != 'done')
-                      Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                              color: (di['color'] as Color).withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: (di['color'] as Color).withValues(alpha: 0.4))),
-                          child: Text(di['text'] as String,
-                              style: GoogleFonts.pressStart2p(fontSize: 8, color: di['color'] as Color))),
-                  ]),
-                  if (todo.createdAt.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Text(s.createdLabel,
-                        style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
-                    const SizedBox(height: 4),
-                    Text(todo.createdAt.substring(0, 10),
-                        style: GoogleFonts.pressStart2p(fontSize: 8, color: c.textDisabled)),
-                  ],
-                ])),
-            Divider(height: 1, color: c.divider),
-            Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                child: Row(children: [
-                  Expanded(child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: AutumnColors.accentOrange),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          padding: const EdgeInsets.symmetric(vertical: 10)),
-                      onPressed: () {
-                        quillCtrl.dispose();
-                        focusNode.dispose();
-                        Navigator.pop(ctx);
-                        _openTodoDialog(todo: todo);
-                      },
-                      icon: const Icon(Icons.edit_rounded, size: 14, color: AutumnColors.accentOrange),
-                      label: Text(s.edit,
-                          style: GoogleFonts.pressStart2p(fontSize: 8, color: AutumnColors.accentOrange)))),
-                  const SizedBox(width: 10),
-                  Expanded(child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(backgroundColor: AutumnColors.accentRed,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          padding: const EdgeInsets.symmetric(vertical: 10)),
-                      onPressed: () async {
-                        quillCtrl.dispose();
-                        focusNode.dispose();
-                        Navigator.pop(ctx);
-                        await NotificationService()
-                            .cancelItemNotifications(itemId: todo.id, itemType: 'todo');
-                        await ref.read(todosProvider.notifier).deleteTodo(todo.id);
-                      },
-                      icon: const Icon(Icons.delete_outline, size: 14, color: Colors.white),
-                      label: Text(s.delete,
-                          style: GoogleFonts.pressStart2p(fontSize: 8, color: Colors.white)))),
-                ])),
-          ]),
-        ),
+                Divider(height: 1, color: c.divider),
+                Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                    child: Row(children: [
+                      Expanded(child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: AutumnColors.accentOrange),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              padding: const EdgeInsets.symmetric(vertical: 10)),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _openTodoDialog(todo: todo);
+                          },
+                          icon: const Icon(Icons.edit_rounded, size: 14, color: AutumnColors.accentOrange),
+                          label: Text(s.edit,
+                              style: GoogleFonts.pressStart2p(fontSize: 8, color: AutumnColors.accentOrange)))),
+                      const SizedBox(width: 10),
+                      Expanded(child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: AutumnColors.accentRed,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              padding: const EdgeInsets.symmetric(vertical: 10)),
+                          onPressed: () async {
+                            Navigator.pop(ctx);
+                            await NotificationService()
+                                .cancelItemNotifications(itemId: todo.id, itemType: 'todo');
+                            await ref.read(todosProvider.notifier).deleteTodo(todo.id);
+                          },
+                          icon: const Icon(Icons.delete_outline, size: 14, color: Colors.white),
+                          label: Text(s.delete,
+                              style: GoogleFonts.pressStart2p(fontSize: 8, color: Colors.white)))),
+                    ])),
+              ]),
+            ),
+          );
+        },
       ),
     );
   }
@@ -556,19 +615,19 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
                 child: Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min,
                     children: [
                       Flexible(child: Text(title,
-                          style: GoogleFonts.pressStart2p(fontSize: 7, color: color),
+                          style: _appTextStyle(fontSize: 7, color: color),
                           textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis)),
                       const SizedBox(width: 4),
                       Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                           decoration: BoxDecoration(color: color.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(10)),
                           child: Text('${items.length}',
-                              style: GoogleFonts.pressStart2p(fontSize: 6, color: color))),
+                              style: _appTextStyle(fontSize: 6, color: color))),
                     ])),
             Expanded(child: items.isEmpty
                 ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
               SizedBox(width: 40, height: 40, child: CustomPaint(painter: _EmptyBoxPainter(color: color))),
               const SizedBox(height: 8),
-              Text(s.empty, style: GoogleFonts.pressStart2p(fontSize: 7, color: color.withValues(alpha: 0.35))),
+              Text(s.empty, style: _appTextStyle(fontSize: 7, color: color.withValues(alpha: 0.35))),
             ]))
                 : ListView.separated(
                 padding: const EdgeInsets.all(6),
@@ -598,7 +657,7 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             const Icon(Icons.delete_outline, color: AutumnColors.accentRed, size: 20),
             const SizedBox(height: 2),
-            Text(s.delete, style: GoogleFonts.pressStart2p(fontSize: 6, color: AutumnColors.accentRed)),
+            Text(s.delete, style: _appTextStyle(fontSize: 6, color: AutumnColors.accentRed)),
           ])),
       secondaryBackground: Container(alignment: Alignment.centerRight,
           padding: const EdgeInsets.only(right: 14),
@@ -608,7 +667,7 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             const Icon(Icons.edit_rounded, color: AutumnColors.accentOrange, size: 20),
             const SizedBox(height: 2),
-            Text(s.edit, style: GoogleFonts.pressStart2p(fontSize: 6, color: AutumnColors.accentOrange)),
+            Text(s.edit, style: _appTextStyle(fontSize: 6, color: AutumnColors.accentOrange)),
           ])),
       confirmDismiss: (direction) async {
         if (direction == DismissDirection.startToEnd) {
@@ -650,7 +709,7 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
                         border: Border.all(color: accentColor, width: 2),
                         boxShadow: [BoxShadow(color: accentColor.withValues(alpha: 0.3), blurRadius: 8)]),
                     child: Text(todo.title.toUpperCase(),
-                        style: GoogleFonts.pressStart2p(fontSize: 8, color: c.textPrimary),
+                        style: _appTextStyle(fontSize: 8, color: c.textPrimary),
                         maxLines: 2, overflow: TextOverflow.ellipsis)))),
         childWhenDragging: Opacity(opacity: 0.3, child: _cardContent(context, todo, di, priorityLabels)),
         child: GestureDetector(onTap: () => _openDetailDialog(todo),
@@ -674,14 +733,14 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
               decoration: BoxDecoration(color: pColor, borderRadius: BorderRadius.circular(2))),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(todo.title.toUpperCase(),
-                style: GoogleFonts.pressStart2p(fontSize: 8, color: c.textPrimary, fontWeight: FontWeight.bold),
+                style: _appTextStyle(fontSize: 8, color: c.textPrimary, fontWeight: FontWeight.bold),
                 maxLines: 2, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 3),
             Row(children: [
               Flexible(child: Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                   decoration: BoxDecoration(color: pColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
                   child: Text(priorityLabels[todo.priority] ?? '',
-                      style: GoogleFonts.pressStart2p(fontSize: 6, color: pColor),
+                      style: _appTextStyle(fontSize: 6, color: pColor),
                       maxLines: 1, overflow: TextOverflow.ellipsis))),
               if ((todo.category ?? '').isNotEmpty) ...[
                 const SizedBox(width: 4),
@@ -699,7 +758,7 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
         if (todo.description.isNotEmpty) ...[
           const SizedBox(height: 6),
           Text(quillJsonToPlainText(todo.description),
-              style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textSecondary),
+              style: _appTextStyle(fontSize: 7, color: c.textSecondary),
               maxLines: 1, overflow: TextOverflow.ellipsis),
         ],
         if ((di['text'] as String).isNotEmpty && todo.status != 'done') ...[
@@ -708,7 +767,7 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
             Icon(Icons.schedule, size: 10, color: di['color'] as Color),
             const SizedBox(width: 4),
             Flexible(child: Text(di['text'] as String,
-                style: GoogleFonts.pressStart2p(fontSize: 7, color: di['color'] as Color),
+                style: _appTextStyle(fontSize: 7, color: di['color'] as Color),
                 maxLines: 1, overflow: TextOverflow.ellipsis)),
           ]),
         ],
@@ -861,7 +920,7 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
     return Autocomplete<String>(
       optionsBuilder: (tv) {
         final q = tv.text.toLowerCase();
-        if (q.isEmpty) return _categories.map((cat) => '${cat["emoji"]} ${cat["label"]}');
+        if (q.isEmpty) return const Iterable<String>.empty();
         return _categories.where((cat) => cat['label']!.toLowerCase().contains(q))
             .map((cat) => '${cat["emoji"]} ${cat["label"]}');
       },
@@ -903,11 +962,11 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
 
   Widget _lbl(dynamic c, String t) => Padding(
       padding: const EdgeInsets.only(bottom: 6),
-      child: Text(t, style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)));
+      child: Text(t, style: _appTextStyle(fontSize: 7, color: c.textDisabled)));
 
   InputDecoration _deco(dynamic c, String hint) => InputDecoration(
       hintText: hint,
-      hintStyle: GoogleFonts.pressStart2p(fontSize: 8, color: c.textDisabled),
+      hintStyle: _appTextStyle(fontSize: 8, color: c.textDisabled),
       filled: true, fillColor: c.bgSurface,
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: c.divider)),
       focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
@@ -927,8 +986,8 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
       appBar: AppBar(
         backgroundColor: c.bgCard, elevation: 0, automaticallyImplyLeading: false,
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(s.title,    style: GoogleFonts.pressStart2p(fontSize: 13, color: AutumnColors.accentOrange)),
-          Text(s.subtitle, style: GoogleFonts.pressStart2p(fontSize: 7,  color: c.textDisabled)),
+          Text(s.title,    style: _appTextStyle(fontSize: 13, color: AutumnColors.accentOrange)),
+          Text(s.subtitle, style: _appTextStyle(fontSize: 7,  color: c.textDisabled)),
         ]),
         actions: [
           IconButton(icon: const Icon(Icons.add_circle_outline, color: AutumnColors.accentOrange, size: 24),
@@ -945,13 +1004,13 @@ class _TodoScreenState extends ConsumerState<TodoScreen>
         Padding(padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               Icon(Icons.swipe,     size: 9, color: c.textDisabled), const SizedBox(width: 3),
-              Text(s.swipeEdit,    style: GoogleFonts.pressStart2p(fontSize: 6, color: c.textDisabled)),
+              Text(s.swipeEdit,    style: _appTextStyle(fontSize: 6, color: c.textDisabled)),
               const SizedBox(width: 8),
               Icon(Icons.touch_app, size: 9, color: c.textDisabled), const SizedBox(width: 3),
-              Text(s.swipeDetail,  style: GoogleFonts.pressStart2p(fontSize: 6, color: c.textDisabled)),
+              Text(s.swipeDetail,  style: _appTextStyle(fontSize: 6, color: c.textDisabled)),
               const SizedBox(width: 8),
               Icon(Icons.open_with, size: 9, color: c.textDisabled), const SizedBox(width: 3),
-              Text(s.swipeMove,    style: GoogleFonts.pressStart2p(fontSize: 6, color: c.textDisabled)),
+              Text(s.swipeMove,    style: _appTextStyle(fontSize: 6, color: c.textDisabled)),
             ])),
         Expanded(child: state.allTodos.isEmpty
             ? PixelEmptyState(type: EmptyStateType.todos, onAction: () => _openTodoDialog())

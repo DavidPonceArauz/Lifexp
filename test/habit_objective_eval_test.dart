@@ -3,7 +3,7 @@ import 'package:lifexp/features/habits/domain/habit_objective_eval.dart';
 
 void main() {
   group('evaluateHabitObjectiveProgress', () {
-    test('returns 80 percent when 4 of 5 days are completed at deadline', () {
+    test('keeps the final day open while reaching 80 percent on deadline day', () {
       final result = evaluateHabitObjectiveProgress(
         createdAtRaw: '2026-04-04 10:00:00+00',
         endDate: '2026-04-08',
@@ -16,11 +16,11 @@ void main() {
       expect(result.evalEndDate, '2026-04-08');
       expect(result.totalDays, 5);
       expect(result.elapsedDays, 5);
-      expect(result.deadlineReached, isTrue);
+      expect(result.deadlineReached, isFalse);
       expect(result.ratio, 0.8);
     });
 
-    test('uses elapsed days before deadline is reached', () {
+    test('uses total days before deadline is reached', () {
       final result = evaluateHabitObjectiveProgress(
         createdAtRaw: '2026-04-04 10:00:00+00',
         endDate: '2026-04-08',
@@ -33,7 +33,24 @@ void main() {
       expect(result.totalDays, 5);
       expect(result.elapsedDays, 3);
       expect(result.deadlineReached, isFalse);
-      expect(result.ratio, closeTo(2 / 3, 0.0001));
+      expect(result.ratio, closeTo(2 / 5, 0.0001));
+    });
+
+    test('counts a same-day check when the linked objective is created later that day', () {
+      final result = evaluateHabitObjectiveProgress(
+        createdAtRaw: '2026-04-06 12:00:00+00',
+        endDate: '2026-04-07',
+        today: '2026-04-06',
+        completedDays: 1,
+      );
+
+      expect(result, isNotNull);
+      expect(result!.startDate, '2026-04-06');
+      expect(result.evalEndDate, '2026-04-06');
+      expect(result.totalDays, 2);
+      expect(result.elapsedDays, 1);
+      expect(result.deadlineReached, isFalse);
+      expect(result.ratio, 0.5);
     });
 
     test('returns null when end date is before start date', () {
@@ -47,11 +64,11 @@ void main() {
       expect(result, isNull);
     });
 
-    test('returns failure ratio under 80 percent after deadline', () {
+    test('returns failure ratio under 80 percent after the deadline has passed', () {
       final result = evaluateHabitObjectiveProgress(
         createdAtRaw: '2026-04-04 10:00:00+00',
         endDate: '2026-04-08',
-        today: '2026-04-08',
+        today: '2026-04-09',
         completedDays: 3,
       );
 

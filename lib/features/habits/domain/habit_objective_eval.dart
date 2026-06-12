@@ -35,13 +35,12 @@ HabitObjectiveEvaluation? evaluateHabitObjectiveProgress({
   final totalDays = end.difference(start).inDays + 1;
   if (totalDays <= 0) return null;
 
-  final deadlineReached = endDate.compareTo(today) <= 0;
+  final deadlineReached = endDate.compareTo(today) < 0;
   final evalEndDate = deadlineReached ? endDate : today;
   final elapsedDays = DateTime.parse(evalEndDate).difference(start).inDays + 1;
   if (elapsedDays <= 0) return null;
 
-  final denominator = deadlineReached ? totalDays : elapsedDays;
-  final ratio = denominator > 0 ? completedDays / denominator : 0.0;
+  final ratio = totalDays > 0 ? completedDays / totalDays : 0.0;
 
   return HabitObjectiveEvaluation(
     startDate: startDate,

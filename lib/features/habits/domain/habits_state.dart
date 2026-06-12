@@ -8,6 +8,7 @@ class HabitsState {
   final List<Habit> habits;
   final List<HabitStreak> streakData;
   final Map<int, bool> completedCache;
+  final Set<int> pendingToggleIds;
   final int freezes;
   final bool isLoading;
   final String? error;
@@ -17,6 +18,7 @@ class HabitsState {
     this.habits = const [],
     this.streakData = const [],
     this.completedCache = const {},
+    this.pendingToggleIds = const {},
     this.freezes = 0,
     this.isLoading = false,
     this.error,
@@ -27,6 +29,7 @@ class HabitsState {
     List<Habit>? habits,
     List<HabitStreak>? streakData,
     Map<int, bool>? completedCache,
+    Set<int>? pendingToggleIds,
     int? freezes,
     bool? isLoading,
     String? error,
@@ -37,6 +40,7 @@ class HabitsState {
         habits: habits ?? this.habits,
         streakData: streakData ?? this.streakData,
         completedCache: completedCache ?? this.completedCache,
+        pendingToggleIds: pendingToggleIds ?? this.pendingToggleIds,
         freezes: freezes ?? this.freezes,
         isLoading: isLoading ?? this.isLoading,
         error: clearError ? null : (error ?? this.error),
@@ -51,4 +55,6 @@ class HabitsState {
   }
 
   bool isCompleted(int habitId) => completedCache[habitId] ?? false;
+
+  bool isTogglePending(int habitId) => pendingToggleIds.contains(habitId);
 }

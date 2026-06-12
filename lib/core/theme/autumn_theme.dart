@@ -80,6 +80,42 @@ class AutumnDarkColors {
 // ══════════════════════════════════════════════════════════════════
 
 const _kThemeModeKey = 'theme_mode';
+const _kFontModeKey = 'font_mode';
+const _kFontScaleKey = 'font_scale';
+
+enum AppFontMode { retro, legible }
+enum AppFontScale { normal, large, extraLarge }
+
+class AppTypographySettings {
+  final AppFontMode mode;
+  final AppFontScale scale;
+
+  const AppTypographySettings({
+    this.mode = AppFontMode.retro,
+    this.scale = AppFontScale.normal,
+  });
+
+  AppTypographySettings copyWith({
+    AppFontMode? mode,
+    AppFontScale? scale,
+  }) {
+    return AppTypographySettings(
+      mode: mode ?? this.mode,
+      scale: scale ?? this.scale,
+    );
+  }
+
+  double get textScaleFactor {
+    switch (scale) {
+      case AppFontScale.normal:
+        return 1.0;
+      case AppFontScale.large:
+        return 1.15;
+      case AppFontScale.extraLarge:
+        return 1.3;
+    }
+  }
+}
 
 class ThemeModeNotifier extends StateNotifier<ThemeMode> {
   ThemeModeNotifier() : super(ThemeMode.system) { _load(); }
@@ -113,6 +149,81 @@ final themeModeProvider =
 StateNotifierProvider<ThemeModeNotifier, ThemeMode>(
         (_) => ThemeModeNotifier());
 
+class AppTypographyNotifier extends StateNotifier<AppTypographySettings> {
+  AppTypographyNotifier() : super(const AppTypographySettings()) {
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedMode = prefs.getString(_kFontModeKey) ?? 'retro';
+    final savedScale = prefs.getString(_kFontScaleKey) ?? 'normal';
+    state = AppTypographySettings(
+      mode: _parseMode(savedMode),
+      scale: _parseScale(savedScale),
+    );
+  }
+
+  Future<void> setMode(AppFontMode mode) async {
+    state = state.copyWith(mode: mode);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kFontModeKey, _encodeMode(mode));
+  }
+
+  Future<void> setScale(AppFontScale scale) async {
+    state = state.copyWith(scale: scale);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kFontScaleKey, _encodeScale(scale));
+  }
+
+  AppFontMode _parseMode(String value) {
+    switch (value) {
+      case 'legible':
+        return AppFontMode.legible;
+      case 'retro':
+      default:
+        return AppFontMode.retro;
+    }
+  }
+
+  AppFontScale _parseScale(String value) {
+    switch (value) {
+      case 'large':
+        return AppFontScale.large;
+      case 'extra_large':
+        return AppFontScale.extraLarge;
+      case 'normal':
+      default:
+        return AppFontScale.normal;
+    }
+  }
+
+  String _encodeMode(AppFontMode mode) {
+    switch (mode) {
+      case AppFontMode.legible:
+        return 'legible';
+      case AppFontMode.retro:
+        return 'retro';
+    }
+  }
+
+  String _encodeScale(AppFontScale scale) {
+    switch (scale) {
+      case AppFontScale.large:
+        return 'large';
+      case AppFontScale.extraLarge:
+        return 'extra_large';
+      case AppFontScale.normal:
+        return 'normal';
+    }
+  }
+}
+
+final appTypographyProvider =
+    StateNotifierProvider<AppTypographyNotifier, AppTypographySettings>(
+      (_) => AppTypographyNotifier(),
+    );
+
 class MobileSizes {
   static const double inputHeight       = 52.0;
   static const double buttonHeight      = 52.0;
@@ -127,7 +238,40 @@ class MobileSizes {
   static const double borderRadius      = 16.0;
 }
 
-ThemeData autumnTheme() {
+TextTheme _buildAutumnTextTheme(AppTypographySettings settings, Brightness brightness) {
+  final baseTheme = TextTheme(
+    displayLarge: TextStyle(
+      color: brightness == Brightness.dark
+          ? AutumnDarkColors.textPrimary
+          : AutumnColors.textPrimary,
+    ),
+    bodyMedium: TextStyle(
+      color: brightness == Brightness.dark
+          ? AutumnDarkColors.textPrimary
+          : AutumnColors.textPrimary,
+      fontSize: 12,
+    ),
+  );
+
+  switch (settings.mode) {
+    case AppFontMode.legible:
+      return GoogleFonts.atkinsonHyperlegibleTextTheme(baseTheme);
+    case AppFontMode.retro:
+      return GoogleFonts.pressStart2pTextTheme(baseTheme);
+  }
+}
+
+String _fontFamilyForMode(AppFontMode mode) {
+  switch (mode) {
+    case AppFontMode.legible:
+      return GoogleFonts.atkinsonHyperlegible().fontFamily!;
+    case AppFontMode.retro:
+      return GoogleFonts.pressStart2p().fontFamily!;
+  }
+}
+
+ThemeData autumnTheme([AppTypographySettings settings = const AppTypographySettings()]) {
+  final fontFamily = _fontFamilyForMode(settings.mode);
   return ThemeData(
     brightness: Brightness.light,
     scaffoldBackgroundColor: AutumnColors.bgPrimary,
@@ -142,18 +286,13 @@ ThemeData autumnTheme() {
       foregroundColor: AutumnColors.textPrimary,
       elevation: 1,
     ),
-    textTheme: GoogleFonts.pressStart2pTextTheme(
-      const TextTheme(
-        displayLarge: TextStyle(color: AutumnColors.textPrimary),
-        bodyMedium:   TextStyle(color: AutumnColors.textPrimary, fontSize: 12),
-      ),
-    ),
+    textTheme: _buildAutumnTextTheme(settings, Brightness.light),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: AutumnColors.bgInput,
       hintStyle: TextStyle(
         color: AutumnColors.textDisabled,
-        fontFamily: GoogleFonts.pressStart2p().fontFamily,
+        fontFamily: fontFamily,
         fontSize: 10,
       ),
       border: OutlineInputBorder(
@@ -187,7 +326,8 @@ ThemeData autumnTheme() {
 // ThemeData — Dark
 // ══════════════════════════════════════════════════════════════════
 
-ThemeData autumnThemeDark() {
+ThemeData autumnThemeDark([AppTypographySettings settings = const AppTypographySettings()]) {
+  final fontFamily = _fontFamilyForMode(settings.mode);
   return ThemeData(
     brightness: Brightness.dark,
     scaffoldBackgroundColor: AutumnDarkColors.bgPrimary,
@@ -202,18 +342,13 @@ ThemeData autumnThemeDark() {
       foregroundColor: AutumnDarkColors.textPrimary,
       elevation: 1,
     ),
-    textTheme: GoogleFonts.pressStart2pTextTheme(
-      const TextTheme(
-        displayLarge: TextStyle(color: AutumnDarkColors.textPrimary),
-        bodyMedium:   TextStyle(color: AutumnDarkColors.textPrimary, fontSize: 12),
-      ),
-    ),
+    textTheme: _buildAutumnTextTheme(settings, Brightness.dark),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: AutumnDarkColors.bgInput,
       hintStyle: TextStyle(
         color: AutumnDarkColors.textDisabled,
-        fontFamily: GoogleFonts.pressStart2p().fontFamily,
+        fontFamily: fontFamily,
         fontSize: 10,
       ),
       border: OutlineInputBorder(
@@ -249,15 +384,15 @@ ThemeData autumnThemeDark() {
 // ══════════════════════════════════════════════════════════════════
 
 extension AutumnContext on BuildContext {
-  _AutumnPalette get ac {
+  AutumnPalette get ac {
     final dark = Theme.of(this).brightness == Brightness.dark;
-    return _AutumnPalette(dark);
+    return AutumnPalette(dark);
   }
 }
 
-class _AutumnPalette {
+class AutumnPalette {
   final bool _dark;
-  const _AutumnPalette(this._dark);
+  const AutumnPalette(this._dark);
 
   Color get bgPrimary   => _dark ? AutumnDarkColors.bgPrimary   : AutumnColors.bgPrimary;
   Color get bgSecondary => _dark ? AutumnDarkColors.bgSecondary : AutumnColors.bgSecondary;

@@ -100,11 +100,11 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen>
             padding: const EdgeInsets.symmetric(horizontal: MobileSizes.screenPadding, vertical: 32),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               // Header
-              Column(children: [
-                const Text('🔐', style: TextStyle(fontSize: 64)),
-                const SizedBox(height: 12),
+              const Column(children: [
+                Text('🔐', style: TextStyle(fontSize: 64)),
+                SizedBox(height: 12),
                 AutumnTitle(text: 'LifeXP'),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 AutumnSubtitle(text: 'RESET PASSWORD'),
               ]),
               const SizedBox(height: MobileSizes.spacingLarge),

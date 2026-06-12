@@ -31,6 +31,22 @@ class _S {
   String get themeLight => isEs ? 'CLARO' : 'LIGHT';
   String get themeDark => isEs ? 'OSCURO' : 'DARK';
   String get language => isEs ? 'IDIOMA' : 'LANGUAGE';
+  String get fontMode => isEs ? 'ESTILO' : 'STYLE';
+  String get fontModeRetro => isEs ? 'ORIGINAL' : 'ORIGINAL';
+  String get fontModeLegible => isEs ? 'LECTURA' : 'READING';
+  String get fontSize => isEs ? 'TAMAÑO DE TEXTO' : 'TEXT SIZE';
+  String get fontSizeNormal => isEs ? 'NORMAL' : 'NORMAL';
+  String get fontSizeLarge => isEs ? 'GRANDE' : 'LARGE';
+  String get fontSizeExtraLarge => isEs ? 'EXTRA' : 'EXTRA';
+  String get fontLegibilityHint => isEs
+      ? 'Prioriza claridad y lectura'
+      : 'Prioritizes clarity and reading';
+  String get fontRetroHint => isEs
+      ? 'Mantiene el estilo visual original'
+      : 'Keeps the original visual style';
+  String get fontSizeHint => isEs
+      ? 'Afecta el tamaño del texto en toda la app'
+      : 'Affects text size across the app';
 
   String get resetXp => isEs ? 'RESETEAR XP Y NIVEL' : 'RESET XP & LEVEL';
   String get resetXpSub =>
@@ -309,9 +325,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         ],
       ),
     );
-    if (confirm != true || !mounted) {
-      return;
-    }
+    if (confirm != true || !mounted) return;
     await SupabaseConfig.client.auth.signOut();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('saved_user_id');
@@ -330,9 +344,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       confirmWord: s.isEs ? 'CONFIRMAR' : 'CONFIRM',
       color: AutumnColors.accentOrange,
     );
-    if (!confirmed || !mounted) {
-      return;
-    }
+    if (!confirmed || !mounted) return;
     try {
       await _xpService.resetXp(userId: widget.userId);
       setState(() {
@@ -345,10 +357,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       _xpBarCtrl.forward();
       HapticFeedback.heavyImpact();
       if (mounted) {
-        _showSnack(
-          s.isEs ? 'XP reseteado a 0' : 'XP reset to 0',
-          AutumnColors.accentOrange,
-        );
+        _showSnack(s.isEs ? 'XP reseteado a 0' : 'XP reset to 0',
+            AutumnColors.accentOrange);
       }
     } catch (e) {
       debugPrint('resetXp error: $e');
@@ -365,9 +375,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       confirmWord: s.isEs ? 'CONFIRMAR' : 'CONFIRM',
       color: AutumnColors.accentRed,
     );
-    if (!confirmed || !mounted) {
-      return;
-    }
+    if (!confirmed || !mounted) return;
     try {
       await _db.rpc('delete_my_account');
       await SupabaseConfig.client.auth.signOut();
@@ -591,9 +599,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         scheme: 'mailto',
         path: 'support@lifexp.app',
         query: 'subject=LifeXP Support');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    }
+    if (await canLaunchUrl(uri)) await launchUrl(uri);
   }
 
   Future<void> _rateApp() async {
@@ -648,7 +654,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                               c: c,
                               label: s.sectionAchievements,
                               accent: AutumnColors.accentGold,
-                              child: _buildBadgesGrid(c, s)),
+                              child: _buildBadgesGrid(c, s),
+                              initiallyExpanded: false),
                           const SizedBox(height: 8),
 
                           // Estadísticas
@@ -656,7 +663,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                               c: c,
                               label: s.sectionStats,
                               accent: AutumnColors.accentOrange,
-                              child: _buildStatsGrid(c, s)),
+                              child: _buildStatsGrid(c, s),
+                              initiallyExpanded: false),
                           const SizedBox(height: 8),
 
                           // Gráficas
@@ -673,7 +681,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                               c: c,
                               label: s.sectionAppearance,
                               accent: AutumnColors.accentGold,
-                              child: _buildAppearanceContent(c, s)),
+                              child: _buildAppearanceContent(c, s),
+                              initiallyExpanded: false),
                           const SizedBox(height: 8),
 
                           // Información
@@ -707,12 +716,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   // ── Sección expandible ────────────────────────────────────────────────────
 
   Widget _buildSection({
-      required dynamic c,
-      required String label,
-      required Color accent,
-      required Widget child,
-      bool initiallyExpanded = false,
-    }) {
+    required dynamic c,
+    required String label,
+    required Color accent,
+    required Widget child,
+    bool initiallyExpanded = true,
+  }) {
     return Container(
       decoration: BoxDecoration(
           color: c.bgCard,
@@ -1294,10 +1303,32 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
   // ── Apariencia ────────────────────────────────────────────────────────────
 
+  TextStyle _appTextStyle({
+    required double fontSize,
+    required Color color,
+    FontWeight? fontWeight,
+  }) {
+    final typography = ref.watch(appTypographyProvider);
+    if (typography.mode == AppFontMode.legible) {
+      return GoogleFonts.atkinsonHyperlegible(
+        fontSize: fontSize,
+        color: color,
+        fontWeight: fontWeight,
+      );
+    }
+    return GoogleFonts.pressStart2p(
+      fontSize: fontSize,
+      color: color,
+      fontWeight: fontWeight,
+    );
+  }
+
   Widget _buildAppearanceContent(dynamic c, _S s) {
     final themeMode = ref.watch(themeModeProvider);
     final lang = ref.watch(languageProvider);
+    final typography = ref.watch(appTypographyProvider);
     final isDark = themeMode == ThemeMode.dark;
+    final isLegible = typography.mode == AppFontMode.legible;
 
     return Column(children: [
       // Tema toggle CLARO / OSCURO
@@ -1315,7 +1346,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         const SizedBox(width: 12),
         Expanded(
             child: Text(s.theme,
-                style: GoogleFonts.pressStart2p(
+                style: _appTextStyle(
                     fontSize: 7, color: c.textPrimary))),
         // Toggle visual
         GestureDetector(
@@ -1342,7 +1373,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                     borderRadius: BorderRadius.circular(7)),
                 child: Center(
                     child: Text(s.themeLight,
-                        style: GoogleFonts.pressStart2p(
+                        style: _appTextStyle(
                             fontSize: 6,
                             color: !isDark ? Colors.white : c.textDisabled,
                             fontWeight: !isDark
@@ -1359,7 +1390,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                     borderRadius: BorderRadius.circular(7)),
                 child: Center(
                     child: Text(s.themeDark,
-                        style: GoogleFonts.pressStart2p(
+                        style: _appTextStyle(
                             fontSize: 6,
                             color: isDark ? Colors.white : c.textDisabled,
                             fontWeight:
@@ -1367,6 +1398,123 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               )),
             ]),
           ),
+        ),
+      ]),
+
+      Divider(height: 24, color: c.divider),
+
+      Row(children: [
+        Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+                color: AutumnColors.mossGreen.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8)),
+            child: const Icon(Icons.text_fields_rounded,
+                color: AutumnColors.mossGreen, size: 17)),
+        const SizedBox(width: 12),
+        Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(s.fontMode,
+              style: _appTextStyle(fontSize: 7, color: c.textPrimary)),
+          const SizedBox(height: 3),
+          Text(isLegible ? s.fontLegibilityHint : s.fontRetroHint,
+              style: _appTextStyle(fontSize: 6, color: c.textDisabled)),
+        ])),
+      ]),
+      const SizedBox(height: 10),
+      Row(children: [
+        Expanded(
+            child: GestureDetector(
+          onTap: () => ref
+              .read(appTypographyProvider.notifier)
+              .setMode(AppFontMode.retro),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            margin: const EdgeInsets.only(right: 6),
+            decoration: BoxDecoration(
+                color: !isLegible ? AutumnColors.mossGreen : c.bgSurface,
+                borderRadius: BorderRadius.circular(8),
+                border:
+                    Border.all(color: !isLegible ? AutumnColors.mossGreen : c.divider)),
+            child: Text(s.fontModeRetro,
+                textAlign: TextAlign.center,
+                style: _appTextStyle(
+                    fontSize: 7,
+                    color: !isLegible ? Colors.white : c.textSecondary)),
+          ),
+        )),
+        Expanded(
+            child: GestureDetector(
+          onTap: () => ref
+              .read(appTypographyProvider.notifier)
+              .setMode(AppFontMode.legible),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+                color: isLegible ? AutumnColors.mossGreen : c.bgSurface,
+                borderRadius: BorderRadius.circular(8),
+                border:
+                    Border.all(color: isLegible ? AutumnColors.mossGreen : c.divider)),
+            child: Text(s.fontModeLegible,
+                textAlign: TextAlign.center,
+                style: _appTextStyle(
+                    fontSize: 7,
+                    color: isLegible ? Colors.white : c.textSecondary)),
+          ),
+        )),
+      ]),
+
+      Divider(height: 24, color: c.divider),
+
+      Row(children: [
+        Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+                color: AutumnColors.freeze.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8)),
+            child: const Icon(Icons.format_size_rounded,
+                color: AutumnColors.freeze, size: 17)),
+        const SizedBox(width: 12),
+        Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(s.fontSize,
+              style: _appTextStyle(fontSize: 7, color: c.textPrimary)),
+          const SizedBox(height: 3),
+          Text(s.fontSizeHint,
+              style: _appTextStyle(fontSize: 6, color: c.textDisabled)),
+        ])),
+      ]),
+      const SizedBox(height: 10),
+      Row(children: [
+        _fontSizeChip(
+          c: c,
+          label: s.fontSizeNormal,
+          selected: typography.scale == AppFontScale.normal,
+          onTap: () => ref
+              .read(appTypographyProvider.notifier)
+              .setScale(AppFontScale.normal),
+        ),
+        _fontSizeChip(
+          c: c,
+          label: s.fontSizeLarge,
+          selected: typography.scale == AppFontScale.large,
+          onTap: () => ref
+              .read(appTypographyProvider.notifier)
+              .setScale(AppFontScale.large),
+        ),
+        _fontSizeChip(
+          c: c,
+          label: s.fontSizeExtraLarge,
+          selected: typography.scale == AppFontScale.extraLarge,
+          onTap: () => ref
+              .read(appTypographyProvider.notifier)
+              .setScale(AppFontScale.extraLarge),
         ),
       ]),
 
@@ -1387,12 +1535,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(s.language,
-              style:
-                  GoogleFonts.pressStart2p(fontSize: 7, color: c.textPrimary)),
+              style: _appTextStyle(fontSize: 7, color: c.textPrimary)),
           const SizedBox(height: 3),
           Text(lang == AppLanguage.es ? '🇪🇸 Español' : '🇺🇸 English',
-              style:
-                  GoogleFonts.pressStart2p(fontSize: 6, color: c.textDisabled)),
+              style: _appTextStyle(fontSize: 6, color: c.textDisabled)),
         ])),
         GestureDetector(
           onTap: () {
@@ -1407,7 +1553,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 color: AutumnColors.accentOrange,
                 borderRadius: BorderRadius.circular(8)),
             child: Text(lang == AppLanguage.es ? 'ES  🇪🇸' : 'EN  🇺🇸',
-                style: GoogleFonts.pressStart2p(
+                style: _appTextStyle(
                     fontSize: 8,
                     color: Colors.white,
                     fontWeight: FontWeight.bold)),
@@ -1415,6 +1561,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
         ),
       ]),
     ]);
+  }
+
+  Widget _fontSizeChip({
+    required dynamic c,
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+        child: GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        margin: const EdgeInsets.only(right: 6),
+        decoration: BoxDecoration(
+            color: selected ? AutumnColors.freeze : c.bgSurface,
+            borderRadius: BorderRadius.circular(8),
+            border:
+                Border.all(color: selected ? AutumnColors.freeze : c.divider)),
+        child: Text(label,
+            textAlign: TextAlign.center,
+            style: _appTextStyle(
+                fontSize: 7,
+                color: selected ? Colors.white : c.textSecondary)),
+      ),
+    ));
   }
 
   // ── Info content ──────────────────────────────────────────────────────────

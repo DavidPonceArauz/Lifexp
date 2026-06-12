@@ -16,7 +16,7 @@ final todosProvider = StateNotifierProvider<TodosNotifier, TodosState>((ref) {
   final repo   = ref.watch(todosRepositoryProvider);
   final userId = ref.watch(userIdProvider);
   return TodosNotifier(repo, userId);
-});
+}, dependencies: [userIdProvider]);
 
 class TodosNotifier extends StateNotifier<TodosState> {
   final TodosRepository _repo;

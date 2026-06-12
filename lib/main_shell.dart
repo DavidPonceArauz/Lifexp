@@ -2,15 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'core/supabase/supabase_client.dart';
 import 'core/theme/autumn_theme.dart';
 import 'features/home/presentation/home_screen.dart';
 import 'features/goals/presentation/goals_screen.dart';
 import 'features/habits/presentation/habits_screen.dart';
 import 'features/habits/presentation/providers/habits_provider.dart';
 import 'features/todos/presentation/todo_screen.dart';
-import 'features/todos/presentation/providers/todos_provider.dart';
-import 'features/goals/presentation/providers/goals_provider.dart';
 
 class MainShell extends ConsumerStatefulWidget {
   final String userId;
@@ -37,10 +34,6 @@ class _MainShellState extends ConsumerState<MainShell> {
     super.initState();
     _currentIndex = widget.initialTab;
     _pageController = PageController(initialPage: widget.initialTab);
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(userIdProvider.notifier).state = widget.userId;
-    });
   }
 
   @override
@@ -63,27 +56,32 @@ class _MainShellState extends ConsumerState<MainShell> {
   @override
   Widget build(BuildContext context) {
     final c = context.ac;
-    return Scaffold(
-      backgroundColor: c.bgPrimary,
-      body: PageView(
-        controller: _pageController,
-        onPageChanged: _onPageChanged,
+    return ProviderScope(
+      overrides: [
+        userIdProvider.overrideWith((_) => widget.userId),
+      ],
+      child: Scaffold(
+        backgroundColor: c.bgPrimary,
+        body: PageView(
+          controller: _pageController,
+          onPageChanged: _onPageChanged,
         // BouncingScrollPhysics da transición nativa fluida en Android e iOS
         // ClampingScrollPhysics (default en Android) corta el gesto a veces
-        physics: const BouncingScrollPhysics(
-          parent: AlwaysScrollableScrollPhysics(),
+          physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics(),
+          ),
+          children: [
+            HomeScreen(userId: widget.userId, onNavigate: _onTabTapped),
+            GoalsScreen(userId: widget.userId),
+            HabitsScreen(userId: widget.userId),
+            TodoScreen(userId: widget.userId),
+          ],
         ),
-        children: [
-          HomeScreen(userId: widget.userId, onNavigate: _onTabTapped),
-          GoalsScreen(userId: widget.userId),
-          HabitsScreen(userId: widget.userId),
-          TodoScreen(userId: widget.userId),
-        ],
-      ),
-      bottomNavigationBar: _AutumnBottomNav(
-        currentIndex: _currentIndex,
-        items: _items,
-        onTap: _onTabTapped,
+        bottomNavigationBar: _AutumnBottomNav(
+          currentIndex: _currentIndex,
+          items: _items,
+          onTap: _onTabTapped,
+        ),
       ),
     );
   }

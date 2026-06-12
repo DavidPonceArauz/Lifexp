@@ -16,7 +16,7 @@ final goalsProvider = StateNotifierProvider<GoalsNotifier, GoalsState>((ref) {
   final repo   = ref.watch(goalsRepositoryProvider);
   final userId = ref.watch(userIdProvider);
   return GoalsNotifier(repo, userId);
-});
+}, dependencies: [userIdProvider]);
 
 class GoalsNotifier extends StateNotifier<GoalsState> {
   final GoalsRepository _repo;

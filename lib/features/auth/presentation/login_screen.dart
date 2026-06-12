@@ -206,11 +206,11 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     );
   }
 
-  Widget _buildHeader() => Column(children: [
-    const Text('🌳', style: TextStyle(fontSize: 64)),
-    const SizedBox(height: 12),
+  Widget _buildHeader() => const Column(children: [
+    Text('🌳', style: TextStyle(fontSize: 64)),
+    SizedBox(height: 12),
     AutumnTitle(text: 'LifeXP'),
-    const SizedBox(height: 8),
+    SizedBox(height: 8),
     AutumnSubtitle(text: 'LEVEL UP YOUR LIFE'),
   ]);
 

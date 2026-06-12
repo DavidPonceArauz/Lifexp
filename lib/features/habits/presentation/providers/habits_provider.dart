@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -21,7 +23,7 @@ final habitsProvider =
   final repo = ref.watch(habitsRepositoryProvider);
   final userId = ref.watch(userIdProvider);
   return HabitsNotifier(repo, userId, ref);
-});
+}, dependencies: [userIdProvider]);
 
 class HabitsNotifier extends StateNotifier<HabitsState> {
   final HabitsRepository _repo;
@@ -73,7 +75,7 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
       final maxStreak = state.streakData.isEmpty
           ? 0
           : state.streakData
-              .map((s) => s.streak as int)
+              .map((s) => s.streak)
               .reduce((a, b) => a > b ? a : b);
 
       final sorted = [...state.streakData]
@@ -96,108 +98,180 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
   }
 
   Future<void> toggleCompleted(int habitId) async {
-    if (!state.isToday) return;
+    if (!state.isToday || state.isTogglePending(habitId)) return;
 
+    final selectedDate = state.selectedDate;
+    final dateStr = selectedDate.toIso8601String().substring(0, 10);
     final wasCompleted = state.completedCache[habitId] ?? false;
     final newCompleted = !wasCompleted;
+    final previousStreakData = state.streakData;
 
     final newCache = Map<int, bool>.from(state.completedCache);
     newCache[habitId] = newCompleted;
 
-    final newStreakData = state.streakData.map((s) {
-      if (s.habitId != habitId) return s;
-
-      final newStreak = newCompleted
-          ? s.streak + 1
-          : (s.streak - 1).clamp(0, 999);
-      final newDaysToFreeze = (s.daysToFreeze - (newCompleted ? 1 : -1))
-          .clamp(0, 999);
-
-      return s.copyWith(
-        statusKey:
-            newCompleted ? HabitStatusKey.done : HabitStatusKey.pending,
-        streak: newStreak,
-        daysToFreeze: newDaysToFreeze,
-      );
-    }).toList();
-
     state = state.copyWith(
       completedCache: newCache,
-      streakData: newStreakData,
+      streakData: _optimisticStreakData(
+        habitId: habitId,
+        wasCompleted: wasCompleted,
+        isCompleted: newCompleted,
+      ),
+      pendingToggleIds: {...state.pendingToggleIds, habitId},
+      clearError: true,
     );
-    _syncWidget();
 
     try {
-      final dateStr = state.selectedDate.toIso8601String().substring(0, 10);
       await _repo.toggleCompleted(habitId, _userId, dateStr);
-
-      if (newCompleted) {
-        await _repo.applyXp(
-          _userId,
-          10,
-          'Habito completado',
-          'habit_completed',
-          habitId,
-          dateStr,
-        );
-      }
-
-      if (newCompleted) {
-        final habits = state.habits;
-        final streaks = newStreakData;
-        if (habits.isNotEmpty) {
-          final habitIndex = habits.indexWhere((h) => h.id == habitId);
-          final streakIndex = streaks.indexWhere((s) => s.habitId == habitId);
-          if (habitIndex != -1 && streakIndex != -1) {
-            final habitData = habits[habitIndex];
-            final currentStreak = streaks[streakIndex].streak;
-            AnalyticsService.habitCompleted(
-              habitId: habitId,
-              habitName: habitData.name,
-              category: habitData.category ?? 'General',
-              currentStreak: currentStreak,
-            );
-
-            const milestones = [3, 7, 14, 30, 60, 100];
-            if (milestones.contains(currentStreak)) {
-              AnalyticsService.streakMilestone(
-                habitId: habitId,
-                habitName: habitData.name,
-                streakDays: currentStreak,
-              );
-            }
-          }
-        }
-      }
-
-      try {
-        await _checkLinkedObjectives(habitId);
-      } catch (e) {
-        debugPrint('_checkLinkedObjectives post-toggle error: $e');
-      }
+      if (!mounted) return;
+      state = state.copyWith(
+        pendingToggleIds: {...state.pendingToggleIds}..remove(habitId),
+      );
+      _syncWidget();
+      unawaited(
+        _finishToggleSync(
+          habitId: habitId,
+          isCompleted: newCompleted,
+          selectedDate: selectedDate,
+          dateStr: dateStr,
+        ),
+      );
     } catch (e) {
       final revertCache = Map<int, bool>.from(state.completedCache);
       revertCache[habitId] = wasCompleted;
 
-      final revertStreaks = state.streakData.map((s) {
-        if (s.habitId != habitId) return s;
-
-        return s.copyWith(
-          statusKey:
-              wasCompleted ? HabitStatusKey.done : HabitStatusKey.pending,
-          streak: wasCompleted ? s.streak : (s.streak - 1).clamp(0, 999),
-          daysToFreeze: wasCompleted ? s.daysToFreeze : (s.daysToFreeze + 1),
-        );
-      }).toList();
-
       state = state.copyWith(
         completedCache: revertCache,
-        streakData: revertStreaks,
+        streakData: previousStreakData,
+        pendingToggleIds: {...state.pendingToggleIds}..remove(habitId),
         error: e.toString(),
       );
-      _syncWidget();
     }
   }
+
+  List<HabitStreak> _optimisticStreakData({
+    required int habitId,
+    required bool wasCompleted,
+    required bool isCompleted,
+  }) {
+    final delta = isCompleted
+        ? (wasCompleted ? 0 : 1)
+        : (wasCompleted ? -1 : 0);
+
+    return state.streakData.map((entry) {
+      if (entry.habitId != habitId || delta == 0) {
+        return entry;
+      }
+
+      if (entry.frequencyMode == HabitFrequencyMode.weekly) {
+        var progress = entry.currentPeriodProgress + delta;
+        if (progress < 0) progress = 0;
+        if (progress > entry.currentPeriodTarget) {
+          progress = entry.currentPeriodTarget;
+        }
+
+        final wasPeriodComplete =
+            entry.currentPeriodProgress >= entry.currentPeriodTarget;
+        final isPeriodComplete = progress >= entry.currentPeriodTarget;
+        var streak = entry.streak;
+        if (!wasPeriodComplete && isPeriodComplete) {
+          streak++;
+        } else if (wasPeriodComplete && !isPeriodComplete && streak > 0) {
+          streak--;
+        }
+
+        return entry.copyWith(
+          streak: streak,
+          statusKey:
+              isPeriodComplete ? HabitStatusKey.done : HabitStatusKey.pending,
+          currentPeriodProgress: progress,
+        );
+      }
+
+      var streak = entry.streak + delta;
+      if (streak < 0) streak = 0;
+      final remainder = streak % 7;
+      final daysToFreeze = streak == 0
+          ? 7
+          : remainder == 0
+              ? 0
+              : 7 - remainder;
+
+      return entry.copyWith(
+        streak: streak,
+        statusKey: isCompleted ? HabitStatusKey.done : HabitStatusKey.pending,
+        daysToFreeze: daysToFreeze,
+        currentPeriodProgress: isCompleted ? 1 : 0,
+      );
+    }).toList();
+  }
+
+  Future<void> _finishToggleSync({
+    required int habitId,
+    required bool isCompleted,
+    required DateTime selectedDate,
+    required String dateStr,
+  }) async {
+    try {
+      final tasks = <Future<void>>[_checkLinkedObjectives(habitId)];
+      if (isCompleted) {
+        tasks.add(
+          _repo.applyXp(
+            _userId,
+            10,
+            'Habito completado',
+            'habit_completed',
+            habitId,
+            dateStr,
+          ),
+        );
+        tasks.add(
+          _repo
+              .awardEarnedFreezes(habitId, _userId, dateStr)
+              .then((_) {}),
+        );
+        tasks.add(_trackHabitCompletion(habitId));
+      }
+      await Future.wait(tasks);
+    } catch (e) {
+      debugPrint('_finishToggleSync error: $e');
+    }
+
+    if (!mounted || !_sameDay(state.selectedDate, selectedDate)) {
+      return;
+    }
+    await _loadScreenData(selectedDate);
+    _syncWidget();
+  }
+
+  Future<void> _trackHabitCompletion(int habitId) async {
+    final habitIndex = state.habits.indexWhere((h) => h.id == habitId);
+    final streakIndex =
+        state.streakData.indexWhere((entry) => entry.habitId == habitId);
+    if (habitIndex == -1 || streakIndex == -1) {
+      return;
+    }
+
+    final habit = state.habits[habitIndex];
+    final currentStreak = state.streakData[streakIndex].streak;
+    await AnalyticsService.habitCompleted(
+      habitId: habitId,
+      habitName: habit.name,
+      category: habit.category,
+      currentStreak: currentStreak,
+    );
+
+    const milestones = [3, 7, 14, 30, 60, 100];
+    if (milestones.contains(currentStreak)) {
+      await AnalyticsService.streakMilestone(
+        habitId: habitId,
+        habitName: habit.name,
+        streakDays: currentStreak,
+      );
+    }
+  }
+
+  bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
 
   Future<void> _checkLinkedObjectives(int habitId) async {
     try {
@@ -323,15 +397,30 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
     }
   }
 
-  Future<void> createHabit(String name, String category) async {
+  Future<void> createHabit(
+    String name,
+    String category, {
+    HabitFrequencyMode frequencyMode = HabitFrequencyMode.daily,
+    int weeklyTarget = 7,
+  }) async {
     try {
-      final newHabit = await _repo.createHabit(_userId, name, category);
+      final newHabit = await _repo.createHabit(
+        _userId,
+        name,
+        category,
+        frequencyMode: frequencyMode,
+        weeklyTarget: weeklyTarget,
+      );
       final newStreak = HabitStreak(
         habitId: newHabit.id,
         name: newHabit.name,
         streak: 0,
         statusKey: HabitStatusKey.pending,
-        daysToFreeze: 7,
+        daysToFreeze: frequencyMode == HabitFrequencyMode.daily ? 7 : 0,
+        frequencyMode: frequencyMode,
+        weeklyTarget: frequencyMode == HabitFrequencyMode.daily ? 7 : weeklyTarget,
+        currentPeriodProgress: 0,
+        currentPeriodTarget: frequencyMode == HabitFrequencyMode.daily ? 1 : weeklyTarget,
       );
       final newCache = Map<int, bool>.from(state.completedCache);
       newCache[newHabit.id] = false;
@@ -387,8 +476,48 @@ class HabitsNotifier extends StateNotifier<HabitsState> {
     return ok;
   }
 
-  Future<List<({int id, String name})>> getMissingYesterday() =>
-      _repo.getMissingYesterday(_userId);
+  Future<bool> applyManualFreezeForDate(
+    int habitId,
+    DateTime freezeDate, {
+    String? userId,
+  }) async {
+    final effectiveUserId = userId ?? _userId;
+    final ok = await _repo.applyManualFreeze(
+      habitId,
+      effectiveUserId,
+      freezeDate: freezeDate,
+    );
+    if (ok) {
+      state = state.copyWith(freezes: state.freezes - 1);
+      await _loadScreenData(state.selectedDate);
+    }
+    return ok;
+  }
+
+  Future<List<PendingHabitFreeze>> getPendingFreezes() =>
+      _repo.getPendingFreezes(_userId);
+
+  Future<({
+    int freezes,
+    List<PendingHabitFreeze> pending,
+  })> getFreezePromptData({String? userId}) async {
+    final effectiveUserId = userId ?? _userId;
+    if (effectiveUserId.isEmpty) {
+      return (
+        freezes: 0,
+        pending: const <PendingHabitFreeze>[],
+      );
+    }
+
+    final results = await Future.wait<Object>([
+      _repo.getUserFreezes(effectiveUserId),
+      _repo.getPendingFreezes(effectiveUserId),
+    ]);
+    final freezes = results[0] as int;
+    final pending = results[1] as List<PendingHabitFreeze>;
+    state = state.copyWith(freezes: freezes);
+    return (freezes: freezes, pending: pending);
+  }
 
   Future<void> applyXp(
     int amount,

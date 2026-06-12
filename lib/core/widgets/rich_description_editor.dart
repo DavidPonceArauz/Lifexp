@@ -139,7 +139,7 @@ class _RichEditorSheetState extends State<_RichEditorSheet> {
               color: c.bgSurface,
               child: QuillSimpleToolbar(
                 controller: _controller,
-                config: QuillSimpleToolbarConfig(
+                config: const QuillSimpleToolbarConfig(
                   showDividers: false,
                   showFontFamily: false,
                   showFontSize: false,
@@ -179,11 +179,11 @@ class _RichEditorSheetState extends State<_RichEditorSheet> {
                 controller: _controller,
                 focusNode: _focusNode,
                 scrollController: scrollCtrl,
-                config: QuillEditorConfig(
+                config: const QuillEditorConfig(
                   scrollable: true,
                   autoFocus: true,
                   expands: false,
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                  padding: EdgeInsets.fromLTRB(16, 12, 16, 32),
                   placeholder: 'Escribe tu descripción aquí...',
                 ),
               ),

@@ -87,6 +87,8 @@ class _GoalS {
   String get addSubMissions => isEs ? 'Añade sub-misiones abajo' : 'Add sub-missions below';
   String get habitLink      => isEs ? 'Hábito: '              : 'Habit: ';
   String get addDesc        => isEs ? 'Añadir descripción...' : 'Add description...';
+  String get openChecklist  => isEs ? 'Abrir checklist / descripción' : 'Open checklist / description';
+  String get checklistHint  => isEs ? 'Toca para editar checks y texto' : 'Tap to edit checks and text';
   String get newObjective   => isEs ? 'Nuevo objetivo...'     : 'New objective...';
   String get noDate         => isEs ? 'Sin fecha'             : 'No date';
   String get linkHabit      => isEs ? '🔗 HÁBITO'             : '🔗 HABIT';
@@ -179,11 +181,34 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
     });
   }
 
+  TextStyle _appTextStyle({
+    required double fontSize,
+    required Color color,
+    FontWeight? fontWeight,
+    double? height,
+  }) {
+    final typography = ref.watch(appTypographyProvider);
+    if (typography.mode == AppFontMode.legible) {
+      return GoogleFonts.atkinsonHyperlegible(
+        fontSize: fontSize,
+        color: color,
+        fontWeight: fontWeight,
+        height: height,
+      );
+    }
+    return GoogleFonts.pressStart2p(
+      fontSize: fontSize,
+      color: color,
+      fontWeight: fontWeight,
+      height: height,
+    );
+  }
+
   Widget _sectionLabel(BuildContext ctx, String text) {
     final c = ctx.ac;
     return Padding(
         padding: const EdgeInsets.only(bottom: 6),
-        child: Text(text, style: GoogleFonts.pressStart2p(fontSize: 8, color: c.textDisabled)));
+        child: Text(text, style: _appTextStyle(fontSize: 8, color: c.textDisabled)));
   }
 
   Widget _dlgInput(BuildContext ctx, TextEditingController ctrl, String hint,
@@ -192,10 +217,10 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
     return TextField(
         controller: ctrl,
         maxLines: multiline ? 3 : 1,
-        style: GoogleFonts.pressStart2p(color: c.textPrimary, fontSize: 10),
+        style: _appTextStyle(color: c.textPrimary, fontSize: 10),
         decoration: InputDecoration(
             hintText: hint,
-            hintStyle: GoogleFonts.pressStart2p(fontSize: 8, color: c.textDisabled),
+            hintStyle: _appTextStyle(fontSize: 8, color: c.textDisabled),
             filled: true, fillColor: c.bgSurface,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: c.divider)),
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
@@ -216,11 +241,11 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
     return Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(10)),
-        child: Text(label, style: GoogleFonts.pressStart2p(fontSize: 7, color: c.bgCard)));
+        child: Text(label, style: _appTextStyle(fontSize: 7, color: c.bgCard)));
   }
 
   Widget _fLabel(BuildContext ctx, String t) => Text(t,
-      style: GoogleFonts.pressStart2p(fontSize: 7, color: ctx.ac.textDisabled));
+      style: _appTextStyle(fontSize: 7, color: ctx.ac.textDisabled));
 
   void _openCreateGoalPopup() {
     final c = context.ac;
@@ -493,7 +518,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('$catEmoji ', style: const TextStyle(fontSize: 16)),
               Expanded(child: Text(goal.title.toUpperCase(),
-                  style: GoogleFonts.pressStart2p(fontSize: 10,
+                  style: _appTextStyle(fontSize: 10,
                       color: isComplete ? AutumnColors.mossGreen : AutumnColors.accentOrange,
                       fontWeight: FontWeight.bold))),
               if (isComplete)
@@ -507,7 +532,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
                 quillJsonToPlainText(goal.description).isNotEmpty
                     ? quillJsonToPlainText(goal.description)
                     : goal.description,
-                style: GoogleFonts.pressStart2p(fontSize: 8, color: c.textSecondary, height: 1.6),
+                style: _appTextStyle(fontSize: 8, color: c.textSecondary, height: 1.6),
                 maxLines: 2, overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 6),
@@ -522,14 +547,14 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
                     decoration: BoxDecoration(color: deadlineColor.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: deadlineColor.withValues(alpha: 0.4))),
-                    child: Text(deadlineBadge, style: GoogleFonts.pressStart2p(fontSize: 7, color: deadlineColor))),
+                    child: Text(deadlineBadge, style: _appTextStyle(fontSize: 7, color: deadlineColor))),
             ]),
             const SizedBox(height: 10),
             if (goal.objTotal > 0) ...[
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Text(s.objectives, style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
+                Text(s.objectives, style: _appTextStyle(fontSize: 7, color: c.textDisabled)),
                 Text('${goal.objCompleted}/${goal.objTotal} ${s.completed}',
-                    style: GoogleFonts.pressStart2p(fontSize: 7, color: AutumnColors.accentOrange)),
+                    style: _appTextStyle(fontSize: 7, color: AutumnColors.accentOrange)),
               ]),
               const SizedBox(height: 5),
               Stack(children: [
@@ -541,14 +566,14 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
                         borderRadius: BorderRadius.circular(7),
                         boxShadow: pct > 0 ? [BoxShadow(color: AutumnColors.accentOrange.withValues(alpha: 0.35), blurRadius: 4)] : []))),
                 if (pct > 0.18) Positioned.fill(child: Center(child: Text('$pctInt%',
-                    style: GoogleFonts.pressStart2p(fontSize: 7, color: Colors.white, fontWeight: FontWeight.bold)))),
+                    style: _appTextStyle(fontSize: 7, color: Colors.white, fontWeight: FontWeight.bold)))),
               ]),
               const SizedBox(height: 8),
             ] else ...[
               Row(children: [
                 Icon(Icons.add_circle_outline, size: 12, color: c.textDisabled),
                 const SizedBox(width: 6),
-                Text(s.noObjectives, style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
+                Text(s.noObjectives, style: _appTextStyle(fontSize: 7, color: c.textDisabled)),
               ]),
               const SizedBox(height: 8),
             ],
@@ -566,7 +591,7 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
                           side: const BorderSide(color: AutumnColors.accentRed)),
                       padding: const EdgeInsets.symmetric(horizontal: 12)),
                   onPressed: () => _confirmDeleteGoal(goal.id),
-                  child: Text(s.delete, style: GoogleFonts.pressStart2p(fontSize: 7, color: AutumnColors.accentRed)))),
+                  child: Text(s.delete, style: _appTextStyle(fontSize: 7, color: AutumnColors.accentRed)))),
             ]),
           ]),
         )),
@@ -690,8 +715,15 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
                 Builder(builder: (_) {
                   final existingCats = state.allGoals.map((g) => g.category ?? '')
                       .where((cat) => cat.isNotEmpty).toSet().toList()..sort();
-                  if (existingCats.isEmpty) return Text(s.noCats,
-                      style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled));
+                  if (existingCats.isEmpty) {
+                    return Text(
+                      s.noCats,
+                      style: GoogleFonts.pressStart2p(
+                        fontSize: 7,
+                        color: c.textDisabled,
+                      ),
+                    );
+                  }
                   return Wrap(spacing: 5, runSpacing: 5, children: [
                     GestureDetector(onTap: () => notifier.setFilterCategory(null),
                         child: AnimatedContainer(duration: const Duration(milliseconds: 130),
@@ -762,8 +794,8 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
       appBar: AppBar(
         backgroundColor: c.bgCard, elevation: 0, automaticallyImplyLeading: false,
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(s.title,    style: GoogleFonts.pressStart2p(fontSize: 14, color: AutumnColors.accentOrange)),
-          Text(s.subtitle, style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled)),
+          Text(s.title,    style: _appTextStyle(fontSize: 14, color: AutumnColors.accentOrange)),
+          Text(s.subtitle, style: _appTextStyle(fontSize: 7, color: c.textDisabled)),
         ]),
         actions: [
           IconButton(icon: const Icon(Icons.add_circle_outline, color: AutumnColors.accentOrange, size: 26),
@@ -786,12 +818,12 @@ class _GoalsScreenState extends ConsumerState<GoalsScreen>
                 decoration: BoxDecoration(color: _messageColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: _messageColor.withValues(alpha: 0.3))),
-                child: Text(_message, style: GoogleFonts.pressStart2p(fontSize: 9, color: _messageColor),
+                child: Text(_message, style: _appTextStyle(fontSize: 9, color: _messageColor),
                     textAlign: TextAlign.center)),
           if (state.allGoals.isNotEmpty && state.filteredGoals.length != state.allGoals.length)
             Padding(padding: const EdgeInsets.only(bottom: 8),
                 child: Text(s.showing(state.filteredGoals.length, state.allGoals.length),
-                    style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled))),
+                    style: _appTextStyle(fontSize: 7, color: c.textDisabled))),
           if (state.filteredGoals.isEmpty && state.allGoals.isEmpty)
             PixelEmptyState(type: EmptyStateType.goals, onAction: _openCreateGoalPopup)
           else if (state.filteredGoals.isEmpty)
@@ -833,7 +865,9 @@ class _ObjectivesDialogState extends State<_ObjectivesDialog> {
   }
   int _xpForLevel(int level) {
     int total = 0;
-    for (int i = 1; i < level; i++) total += 300 + i * 200;
+    for (int i = 1; i < level; i++) {
+      total += 300 + i * 200;
+    }
     return total;
   }
 
@@ -909,6 +943,9 @@ class _ObjectivesDialogState extends State<_ObjectivesDialog> {
               .select('total_xp')
               .eq('id', widget.userId)
               .single();
+          if (!mounted) {
+            return;
+          }
           final levelAfter = _calcLevel(profileAfter['total_xp'] as int? ?? 0);
           if (levelAfter > _currentLevel) {
             _currentLevel = levelAfter;
@@ -956,6 +993,7 @@ class _ObjectivesDialogState extends State<_ObjectivesDialog> {
   @override
   Widget build(BuildContext context) {
     final c        = context.ac;
+    final s        = _GoalS(Localizations.localeOf(context).languageCode == 'es');
     final total    = _objectives.length;
     final done     = _objectives.where((o) => o.isCompleted).length;
     final progress = total > 0 ? done / total : 0.0;
@@ -1085,10 +1123,10 @@ class _ObjectivesDialogState extends State<_ObjectivesDialog> {
                           const SizedBox(width: 6),
                           Expanded(child: hasDesc
                               ? Text(quillJsonToPlainText(obj.description),
-                              style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textSecondary),
-                              maxLines: 2, overflow: TextOverflow.ellipsis)
-                              : Text('Add description...',
-                              style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled))),
+                                  style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textSecondary),
+                                  maxLines: 2, overflow: TextOverflow.ellipsis)
+                              : Text(s.openChecklist,
+                                  style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled))),
                         ]),
                       ),
                     ),
@@ -1197,6 +1235,7 @@ class _AddObjectiveRowState extends State<_AddObjectiveRow> {
   @override
   Widget build(BuildContext context) {
     final c       = context.ac;
+    final s       = _GoalS(Localizations.localeOf(context).languageCode == 'es');
     final hasDesc = _descJson.isNotEmpty && quillJsonToPlainText(_descJson).isNotEmpty;
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1264,23 +1303,6 @@ class _AddObjectiveRowState extends State<_AddObjectiveRow> {
                     color: _linkHabit ? AutumnColors.accentGold : c.textDisabled)),
               ])),
         ),
-        const SizedBox(width: 8),
-        GestureDetector(
-          onTap: _openDescSheet,
-          child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              decoration: BoxDecoration(
-                  color: hasDesc ? AutumnColors.accentOrange.withValues(alpha: 0.12) : c.bgCard,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: hasDesc ? AutumnColors.accentOrange : c.divider)),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.edit_note_rounded, size: 14,
-                    color: hasDesc ? AutumnColors.accentOrange : c.textDisabled),
-                const SizedBox(width: 4),
-                Text('DESC', style: GoogleFonts.pressStart2p(fontSize: 7,
-                    color: hasDesc ? AutumnColors.accentOrange : c.textDisabled)),
-              ])),
-        ),
       ]),
       if (_linkHabit && _habits.isNotEmpty) ...[
         const SizedBox(height: 8),
@@ -1305,8 +1327,52 @@ class _AddObjectiveRowState extends State<_AddObjectiveRow> {
       ],
       if (_linkHabit && _habits.isEmpty)
         Padding(padding: const EdgeInsets.only(top: 6),
-            child: Text('No active habits yet',
+            child: Text(s.noHabits,
                 style: GoogleFonts.pressStart2p(fontSize: 7, color: c.textDisabled))),
+      const SizedBox(height: 8),
+      GestureDetector(
+        onTap: _openDescSheet,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: hasDesc ? AutumnColors.accentOrange.withValues(alpha: 0.12) : c.bgCard,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: hasDesc ? AutumnColors.accentOrange : c.divider),
+          ),
+          child: Row(children: [
+            Icon(Icons.checklist_rtl_rounded, size: 16,
+                color: hasDesc ? AutumnColors.accentOrange : c.textDisabled),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    hasDesc
+                        ? quillJsonToPlainText(_descJson)
+                        : s.openChecklist,
+                    style: GoogleFonts.pressStart2p(
+                      fontSize: 7,
+                      color: hasDesc ? c.textPrimary : c.textDisabled,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    s.checklistHint,
+                    style: GoogleFonts.pressStart2p(
+                      fontSize: 6,
+                      color: AutumnColors.accentOrange.withValues(alpha: 0.8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ]),
+        ),
+      ),
       const SizedBox(height: 8),
       NotificationConfigWidget(config: _notifConfig, onChanged: (cfg) => setState(() => _notifConfig = cfg)),
     ]);

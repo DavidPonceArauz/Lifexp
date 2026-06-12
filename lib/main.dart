@@ -13,7 +13,6 @@ import 'core/theme/language_provider.dart';
 import 'core/supabase/supabase_client.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/widget_service.dart';
-import 'core/services/sentry_service.dart';
 import 'core/services/analytics_service.dart';
 import 'features/auth/presentation/login_screen.dart';
 import 'features/auth/presentation/register_screen.dart';
@@ -34,6 +33,7 @@ Future<void> main() async {
       options.tracesSampleRate = 0.2;
       options.environment = 'production';
       options.attachScreenshot = true;
+      // ignore: experimental_member_use
       options.attachViewHierarchy = true;
     },
     appRunner: () async {
@@ -132,6 +132,7 @@ class _LifeXPAppState extends ConsumerState<LifeXPApp> {
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
     final language  = ref.watch(languageProvider);
+    final typography = ref.watch(appTypographyProvider);
     final locale    = language == AppLanguage.en
         ? const Locale('en')
         : const Locale('es');
@@ -139,12 +140,21 @@ class _LifeXPAppState extends ConsumerState<LifeXPApp> {
     return MaterialApp(
       title: 'LifeXP',
       debugShowCheckedModeBanner: false,
-      theme: autumnTheme(),
-      darkTheme: autumnThemeDark(),
+      theme: autumnTheme(typography),
+      darkTheme: autumnThemeDark(typography),
       themeMode: themeMode,
       locale: locale,
       navigatorKey: _navigatorKey,
       navigatorObservers: [SentryNavigatorObserver()],
+      builder: (context, child) {
+        final mediaQuery = MediaQuery.of(context);
+        return MediaQuery(
+          data: mediaQuery.copyWith(
+            textScaler: TextScaler.linear(typography.textScaleFactor),
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
 
       // ── Localizations para flutter_quill ────────────────────────────────
       localizationsDelegates: const [

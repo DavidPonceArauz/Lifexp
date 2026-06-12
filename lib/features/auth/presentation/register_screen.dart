@@ -201,8 +201,8 @@ class _RegisterScreenState extends State<RegisterScreen>
     );
   }
 
-  Widget _buildHeader() => Column(
-        children: const [
+  Widget _buildHeader() => const Column(
+        children: [
           Text('PLAYER', style: TextStyle(fontSize: 28, color: AutumnColors.mossGreen)),
           SizedBox(height: 12),
           AutumnTitle(text: 'LifeXP'),

@@ -85,9 +85,9 @@ class _AutumnButtonState extends State<AutumnButton> {
   }
 
   Color _darken(Color c, double f) => Color.fromRGBO(
-    (c.red * f).round(),
-    (c.green * f).round(),
-    (c.blue * f).round(),
+    ((c.r * 255.0) * f).round().clamp(0, 255),
+    ((c.g * 255.0) * f).round().clamp(0, 255),
+    ((c.b * 255.0) * f).round().clamp(0, 255),
     1,
   );
 }
@@ -628,10 +628,10 @@ class LeafBackgroundPainter extends CustomPainter {
     for (int i = 0; i < leaves.length; i++) {
       final l = leaves[i];
       final paint = Paint()
-        ..color = (l.$3 as Color).withValues(alpha: 0.07)
+        ..color = l.$3.withValues(alpha: 0.07)
         ..style = PaintingStyle.fill;
-      final ox = (l.$1 as double) * size.width + 8 * (animValue - 0.5);
-      final oy = (l.$2 as double) * size.height + 15 * animValue;
+      final ox = l.$1 * size.width + 8 * (animValue - 0.5);
+      final oy = l.$2 * size.height + 15 * animValue;
       canvas.drawOval(
           Rect.fromCenter(center: Offset(ox, oy), width: 12.0 + i * 3, height: 10.0 + i * 2),
           paint);
