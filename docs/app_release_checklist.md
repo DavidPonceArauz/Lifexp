@@ -32,6 +32,10 @@
 - [x] Validar manualmente en Android real: popup de freezes con saldo y habitos pendientes.
 - [x] Validar manualmente en Android real: usar freeze sobre un habito perdido.
 - [x] Validar manualmente en Android real: notificacion de calendario 2-3 minutos adelante.
+- [x] Corregir IDs internos de notificaciones para soportar IDs locales offline.
+- [x] Enrutar notificaciones de tareas, metas, objetivos y eventos al detalle exacto.
+- [x] Validar manualmente en Android real: notificaciones de Todo abren la tarea exacta.
+- [x] Validar manualmente en Android real: notificaciones de Eventos abren el evento exacto.
 - [x] Eliminar el campo redundante `Hora` del formulario de eventos; el horario vive en `Recordatorio`.
 - [x] Validar manualmente el formulario de eventos sin el campo redundante `Hora`.
 - [x] Validar manualmente en Android real: evento recurrente lunes/viernes con notificacion.
@@ -54,21 +58,138 @@
 
 ## 3. Preparacion Play Console
 
+- [x] Crear guia de envio a Play Console con datos reales de LifeXP.
 - [ ] Nombre final de la app.
-- [ ] Icono final.
+- [x] Icono final.
 - [ ] Splash y branding consistentes.
 - [ ] Screenshots reales.
+- [x] Feature graphic 1024 x 500.
 - [ ] Descripcion corta y larga.
 - [ ] Categoria y tags.
-- [ ] Email de soporte real.
+- [x] Email de soporte real.
+- [x] Reemplazar `support@lifexp.app` por `davidponcearauz@gmail.com` hasta comprar dominio.
+- [x] Analizar `lib/features/profile/presentation/profile_screen.dart` tras cambiar correo de soporte.
+- [x] Regenerar AAB release con correo de soporte actualizado.
+- [ ] Confirmar que la Privacy Policy publica abre correctamente desde la URL final.
 - [x] Privacy Policy URL.
 - [ ] Data Safety form: email, username, habitos/metas/tareas, analytics, crash reporting.
-- [ ] Explicar borrado de cuenta si Play lo pide.
+- [x] Crear pagina publica bilingue con instrucciones de borrado de cuenta y datos.
+- [ ] Publicar y verificar la URL de borrado de cuenta en GitHub Pages.
+- [ ] Registrar la URL de borrado de cuenta en Play Console.
+- [x] Crear app en Play Console.
+- [x] Subir `app-release.aab` a Internal testing.
+- [x] Crear lista de testers internos.
+- [x] Anadir `davidponcearauz@gmail.com` a la prueba interna.
+- [ ] Completar App content: privacy, ads, app access, target audience, content rating, data safety.
+- [ ] Enviar Internal testing a revision.
+- [ ] Reclutar testers para Closed testing si la cuenta lo requiere.
 
-## 4. Lanzamiento controlado
+## 4. Widgets Android
+
+- [x] Redisenar el widget principal con arbol, nivel, habitos y tareas pendientes.
+- [x] Agregar widget compacto `LifeXP Mini`.
+- [x] Agregar widget `LifeXP Agenda` con siete dias y proximas misiones.
+- [x] Incluir tareas, eventos, metas y objetivos con fecha.
+- [x] Mostrar como maximo dos elementos vencidos y excluir elementos sin fecha.
+- [x] Abrir cada elemento de agenda en su detalle exacto dentro de LifeXP.
+- [x] Sincronizar idioma y mensajes motivacionales con la app.
+- [x] Actualizar widgets tras cambios de habitos, tareas, metas, objetivos y eventos.
+- [x] Redisenar los tres widgets tras la primera prueba visual para mejorar jerarquia y legibilidad.
+- [x] Mantener los arboles originales para conservar la identidad visual de LifeXP.
+- [x] Analizar `lib/core/services/widget_service.dart`.
+- [x] Analizar `lib/features/widgets/presentation/widget_item_detail_screen.dart`.
+- [x] Analizar `lib/main.dart` tras agregar los deep links de widgets.
+- [x] Analizar `lib/features/habits/domain/habits_state.dart`.
+- [x] Analizar `lib/features/habits/presentation/providers/habits_provider.dart`.
+- [x] Analizar `lib/features/todos/presentation/providers/todos_provider.dart`.
+- [x] Analizar `lib/features/goals/presentation/providers/goals_provider.dart`.
+- [x] Analizar `lib/core/theme/language_provider.dart`.
+- [x] Analizar `lib/features/home/presentation/home_screen.dart`.
+- [x] Analizar todos los archivos Dart modificados para widgets.
+- [x] Reinstalar la app y validar los tres widgets en Android.
+- [x] Validar visualmente el rediseño de los widgets con capturas reales.
+- [x] Aprobar la nueva direccion visual sencilla, llamativa y coherente con LifeXP.
+- [x] Validar los tamanos 2x2, 4x2 y 4x3 tras el rediseño final.
+- [x] Validar aperturas: inicio, habitos, tareas y detalle exacto de agenda.
+- [x] Confirmar build release despues de cerrar los widgets (AAB de 50.5 MB).
+
+## 5. Lanzamiento controlado
 
 - [ ] Subir primero a `internal testing`.
 - [ ] Invitar 5-10 testers.
 - [ ] Recoger: crashes, problemas de notificaciones, errores de auth, UX confusa en habitos anclados.
 - [ ] Pasar a `closed testing`.
 - [ ] Finalmente produccion.
+
+## 6. Funcionamiento offline
+
+- [x] Auditar accesos directos a Supabase y dependencias locales.
+- [x] Definir arquitectura local-first con SQLite y cola persistente.
+- [x] Crear base local para cache, operaciones pendientes y mapeo de IDs.
+- [x] Crear servicio periodico de sincronizacion diferida.
+- [x] Preparar migracion SQL para IDs idempotentes de sincronizacion.
+- [x] Aplicar migracion SQL de sincronizacion en Supabase.
+- [x] Analizar `lib/core/offline/offline_database.dart`.
+- [x] Analizar `lib/core/offline/offline_sync_service.dart`.
+- [x] Migrar Tareas como primer modulo offline completo.
+- [x] Analizar `lib/features/todos/data/todos_repository.dart`.
+- [x] Analizar `lib/features/todos/presentation/providers/todos_provider.dart`.
+- [x] Analizar `lib/main.dart` tras inicializar el modo offline.
+- [x] Analizar `lib/main_shell.dart` con estado de sincronizacion.
+- [x] Analizar `lib/core/services/xp_service.dart`.
+- [x] Completar analyzers del modulo piloto offline de Tareas.
+- [x] Validar crear tareas en modo avion y conservarlas tras reconectar.
+- [x] Migrar Metas y Objetivos a lectura local y cola de sincronizacion.
+- [x] Migrar creacion, retiro y marcado de Habitos con estado deseado idempotente.
+- [x] Cachear Habitos, rachas y saldo de freezes para lectura offline.
+- [x] Migrar XP a aplicacion local y sincronizacion idempotente.
+- [x] Migrar uso y obtencion de freezes completamente offline.
+- [x] Migrar Calendario, eventos recurrentes y recordatorios locales.
+- [x] Cachear Home, arbol, Perfil, estadisticas y detalle de widgets.
+- [x] Analizar `lib/features/goals/data/goals_repository.dart` para offline.
+- [x] Analizar `lib/features/goals/presentation/goals_screen.dart` para offline.
+- [x] Analizar `lib/features/goals/presentation/providers/goals_provider.dart` para offline.
+- [x] Analizar `lib/features/goals/domain/goal.dart` para offline.
+- [x] Analizar `lib/features/habits/data/habits_repository.dart` para offline.
+- [x] Analizar `lib/features/habits/presentation/providers/habits_provider.dart` para offline.
+- [x] Analizar `lib/core/services/xp_service.dart` para offline.
+- [x] Reanalizar `habits_repository.dart` tras corregir el saldo de freezes offline.
+- [x] Reanalizar repositorio tras completar freezes offline.
+- [x] Reanalizar provider de Habitos tras completar freezes offline.
+- [x] Reanalizar XP tras completar freezes offline.
+- [x] Reanalizar sincronizacion tras completar freezes offline.
+- [x] Reanalizar Home tras distinguir cada popup pendiente de freeze.
+- [x] Validar uso de freeze offline, restauracion de XP y sincronizacion sin doble descuento.
+- [x] Aplicar un freeze offline al habito de prueba `Aprender Portugues`.
+- [x] Confirmar tras reconectar que el saldo queda en 1 y no se descuenta nuevamente.
+- [x] Analizar `lib/features/home/presentation/home_screen.dart` para offline.
+- [x] Analizar `lib/features/profile/presentation/profile_screen.dart` para offline.
+- [x] Analizar `lib/features/profile/presentation/stats_charts.dart` para offline.
+- [x] Analizar `lib/core/services/widget_service.dart` para offline.
+- [x] Reanalizar `lib/core/offline/offline_database.dart` tras ampliar sus operaciones de cache.
+- [x] Reanalizar `lib/features/todos/data/todos_repository.dart` tras separar operaciones pendientes por modulo.
+- [x] Validar que Metas y Objetivos aparecen, se crean y cambian offline.
+- [x] Validar que Habitos se pueden marcar offline y sincronizar una sola vez.
+- [x] Validar que el arbol conserva nivel y XP al reiniciar sin conexion.
+- [x] Validar que el saldo de freezes se conserva al cerrar y reabrir sin conexion.
+- [x] Validar eventos simples creados y borrados offline.
+- [x] Validar una serie recurrente creada y borrada offline.
+- [x] Validar Home y Perfil con datos locales en modo avion.
+- [x] Validar widgets con datos locales en modo avion.
+- [x] Validar carga general de la app con internet y en modo avion.
+- [x] Mostrar estado de sincronizacion y cantidad de cambios pendientes.
+- [x] Probar cierre de app, reinicio y reconexion sin duplicar habito, tarea ni evento.
+- [x] Validar crear y borrar una tarea antes de su primera sincronizacion.
+- [x] Validar crear y borrar una meta antes de su primera sincronizacion.
+- [x] Completar prueba de edicion de una tarea existente offline.
+- [x] Completar borrado offline de un evento simple.
+- [x] Completar borrado offline de una serie recurrente.
+- [x] Corregir segunda pasada automatica de sincronizacion cuando se encola un cambio durante un sync activo.
+- [x] Mantener la barra en estado sincronizando durante la segunda pasada para no mostrar pendientes transitorios.
+- [x] Validar que la barra de cambios pendientes desaparece sola cuando hay internet.
+- [x] Analizar `lib/core/offline/offline_sync_service.dart` tras el ultimo ajuste de barra.
+- [x] Pasar `test/habit_objective_eval_test.dart` tras modo offline.
+- [x] Pasar `test/domain_models_test.dart` tras modo offline.
+- [x] Pasar `test/state_objects_test.dart` tras modo offline.
+- [x] Pasar `test/filter_notifiers_test.dart` tras modo offline.
+- [x] Confirmar analyzer, tests y build release del modo offline.
